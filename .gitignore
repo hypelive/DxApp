@@ -31,3 +31,9 @@
 *.out
 *.app
 /.vs/DxApp
+/DxApp/x64/Debug/DxApp.tlog/CL.read.1.tlog
+/DxApp/x64/Debug/DxApp.tlog/link.read.1.tlog
+/DxApp/x64/Debug/DxApp.ilk
+/DxApp/x64/Debug/vc143.idb
+/DxApp/x64/Debug/vc143.pdb
+/x64/Debug/DxApp.pdb

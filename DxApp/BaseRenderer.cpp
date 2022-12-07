@@ -1,15 +1,17 @@
 #include "dxgi.h"
-#include "assert.h"
+#include "DxHelpers.h"
 #include "BaseRenderer.h"
 
 
-void GetHardwareAdapter(IDXGIFactory* pFactory, IDXGIAdapter** ppAdapter)
+using namespace DXHelper;
+
+void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 {
-	*ppAdapter = nullptr;
+	*adapter = nullptr;
 	for (UINT adapterIndex = 0; ; ++adapterIndex)
 	{
 		IDXGIAdapter* pAdapter = nullptr;
-		if (DXGI_ERROR_NOT_FOUND == pFactory->EnumAdapters(adapterIndex, &pAdapter))
+		if (DXGI_ERROR_NOT_FOUND == factory->EnumAdapters(adapterIndex, &pAdapter))
 		{
 			// No more adapters to enumerate.
 			break;
@@ -19,7 +21,7 @@ void GetHardwareAdapter(IDXGIFactory* pFactory, IDXGIAdapter** ppAdapter)
 		// actual device yet.
 		if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
 		{
-			*ppAdapter = pAdapter;
+			*adapter = pAdapter;
 			return;
 		}
 		pAdapter->Release();
@@ -41,13 +43,12 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 	// Device
 	{
 		IDXGIFactory* factory;
-		assert(CreateDXGIFactory(IID_PPV_ARGS(&factory)) == S_OK);
-
+		ThrowIfFailed(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
 
 		IDXGIAdapter* hardwareAdapter;
 		GetHardwareAdapter(factory, &hardwareAdapter);
 
-		assert(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)) == S_OK);
+		ThrowIfFailed(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
 	}
 
 	// Command queue
@@ -55,8 +56,6 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
 		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-		assert(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)) == S_OK);
+		ThrowIfFailed(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 	}
-
-
 }
