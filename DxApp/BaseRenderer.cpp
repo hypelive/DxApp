@@ -1,4 +1,5 @@
-#include "dxgi.h"
+#include "d3d12sdklayers.h"
+#include "d3dx12.h"
 #include "DxHelpers.h"
 #include "BaseRenderer.h"
 
@@ -29,6 +30,7 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 }
 
 
+// TODO ComPtr<>
 BaseRenderer::BaseRenderer(HWND hwnd)
 {
 	// Debug layers
@@ -38,13 +40,14 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 		{
 			debugController->EnableDebugLayer();
 		}
+		debugController->Release();
 	}
+
+	IDXGIFactory* factory;
+	ThrowIfFailed(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
 
 	// Device
 	{
-		IDXGIFactory* factory;
-		ThrowIfFailed(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
-
 		IDXGIAdapter* hardwareAdapter;
 		GetHardwareAdapter(factory, &hardwareAdapter);
 
@@ -58,4 +61,62 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 
 		ThrowIfFailed(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 	}
+
+	// Swap chain
+	{
+		DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+		swapChainDesc.BufferCount = kSwapChainBuffersCount;
+		swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		swapChainDesc.OutputWindow = hwnd;
+		swapChainDesc.SampleDesc.Count = 1;
+		swapChainDesc.Windowed = TRUE;
+
+		ThrowIfFailed(factory->CreateSwapChain(m_commandQueue, &swapChainDesc, &m_swapChain));
+
+		// Turn off transition to full screen
+		ThrowIfFailed(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
+	}
+
+	// Descriptor heap
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+		rtvHeapDesc.NumDescriptors = kSwapChainBuffersCount;
+		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
+
+		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	}
+
+	// Frame resources
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+
+		// Create a RTV for each frame.
+		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
+		{
+			ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
+			m_device->CreateRenderTargetView(m_renderTargets[n], nullptr, rtvHandle);
+			rtvHandle.Offset(1, m_rtvDescriptorSize);
+		}
+	}
+
+	ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+	factory->Release();
+}
+
+
+BaseRenderer::~BaseRenderer()
+{
+	m_commandAllocator->Release();
+
+	for (const auto& renderTarget : m_renderTargets)
+		renderTarget->Release();
+
+	m_rtvHeap->Release();
+	m_swapChain->Release();
+	m_commandQueue->Release();
+	m_device->Release();
 }
