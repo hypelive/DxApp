@@ -25,7 +25,7 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 
 		// Check to see if the adapter supports Direct3D 12, but don't create the
 		// actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+		if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_12_0, _uuidof(ID3D12Device), nullptr)))
 		{
 			*adapter = pAdapter;
 			return;
@@ -169,9 +169,9 @@ void BaseRenderer::LoadAssets()
 		uint32_t compileFlags = 0;
 #endif
 
-		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, nullptr, "vs_main", "vs_5_0",
+		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0",
 		                                 compileFlags, 0, &vertexShader, nullptr));
-		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, nullptr, "ps_main", "ps_5_0",
+		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0",
 		                                 compileFlags, 0, &pixelShader, nullptr));
 
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {

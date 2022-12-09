@@ -1,7 +1,4 @@
-struct PixelAttributes
-{
-    float4 position : SV_POSITION;
-};
+#include "Example.hlsli"
 
 void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_TARGET)
 {
