@@ -2,7 +2,7 @@
 
 #include "stdint.h"
 #include "d3d12.h"
-#include "dxgi.h"
+#include "dxgi1_4.h"
 #include "wrl.h"
 
 
@@ -20,12 +20,26 @@ private:
 
 	ComPtr<ID3D12Device> m_device;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
-	ComPtr<IDXGISwapChain> m_swapChain;
+	ComPtr<IDXGISwapChain3> m_swapChain;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12Resource> m_renderTargets[kSwapChainBuffersCount];
 	ComPtr<ID3D12CommandAllocator> m_commandAllocator;
-
+	ComPtr<ID3D12RootSignature> m_rootSignature;
+	ComPtr<ID3D12PipelineState> m_pipelineState;
+	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	uint32_t m_rtvDescriptorSize = 0;
-	
+
+	ComPtr<ID3D12Resource> m_vertexBuffer;
+	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+
+	uint32_t m_frameIndex;
+	HANDLE m_fenceEvent;
+	ComPtr<ID3D12Fence> m_fence;
+	uint64_t m_fenceValue;
+
+	void LoadPipeline(HWND hwnd);
+	void LoadAssets();
+
+	void WaitForPreviousFrame();
 };
 

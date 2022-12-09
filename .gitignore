@@ -34,3 +34,4 @@
 /.vs
 /x64
 /DxApp/x64/Debug
+/DxApp/Shaders/shader.bin
