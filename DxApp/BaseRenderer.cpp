@@ -5,13 +5,14 @@
 
 
 using namespace DXHelper;
+using namespace Microsoft::WRL;
 
 void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 {
 	*adapter = nullptr;
 	for (UINT adapterIndex = 0; ; ++adapterIndex)
 	{
-		IDXGIAdapter* pAdapter = nullptr;
+		ComPtr<IDXGIAdapter> pAdapter = nullptr;
 		if (DXGI_ERROR_NOT_FOUND == factory->EnumAdapters(adapterIndex, &pAdapter))
 		{
 			// No more adapters to enumerate.
@@ -20,38 +21,35 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 
 		// Check to see if the adapter supports Direct3D 12, but don't create the
 		// actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+		if (SUCCEEDED(D3D12CreateDevice(pAdapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
 		{
-			*adapter = pAdapter;
+			*adapter = pAdapter.Get();
 			return;
 		}
-		pAdapter->Release();
 	}
 }
 
 
-// TODO ComPtr<>
 BaseRenderer::BaseRenderer(HWND hwnd)
 {
 	// Debug layers
 	{
-		ID3D12Debug* debugController;
+		ComPtr<ID3D12Debug> debugController;
 		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
 		{
 			debugController->EnableDebugLayer();
 		}
-		debugController->Release();
 	}
 
-	IDXGIFactory* factory;
+	ComPtr<IDXGIFactory> factory;
 	ThrowIfFailed(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
 
 	// Device
 	{
-		IDXGIAdapter* hardwareAdapter;
-		GetHardwareAdapter(factory, &hardwareAdapter);
+		ComPtr<IDXGIAdapter> hardwareAdapter;
+		GetHardwareAdapter(factory.Get(), &hardwareAdapter);
 
-		ThrowIfFailed(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
+		ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
 	}
 
 	// Command queue
@@ -73,7 +71,7 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 		swapChainDesc.SampleDesc.Count = 1;
 		swapChainDesc.Windowed = TRUE;
 
-		ThrowIfFailed(factory->CreateSwapChain(m_commandQueue, &swapChainDesc, &m_swapChain));
+		ThrowIfFailed(factory->CreateSwapChain(m_commandQueue.Get(), &swapChainDesc, &m_swapChain));
 
 		// Turn off transition to full screen
 		ThrowIfFailed(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
@@ -98,25 +96,13 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
 		{
 			ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-			m_device->CreateRenderTargetView(m_renderTargets[n], nullptr, rtvHandle);
+			m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
 			rtvHandle.Offset(1, m_rtvDescriptorSize);
 		}
 	}
 
 	ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
-	factory->Release();
 }
 
 
-BaseRenderer::~BaseRenderer()
-{
-	m_commandAllocator->Release();
-
-	for (const auto& renderTarget : m_renderTargets)
-		renderTarget->Release();
-
-	m_rtvHeap->Release();
-	m_swapChain->Release();
-	m_commandQueue->Release();
-	m_device->Release();
-}
+BaseRenderer::~BaseRenderer() {}
