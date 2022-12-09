@@ -10,6 +10,7 @@ using namespace DXHelper;
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
+
 void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 {
 	*adapter = nullptr;
@@ -138,6 +139,7 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 
 	ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 }
+
 
 void BaseRenderer::LoadAssets()
 {
@@ -273,20 +275,24 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	};
 	m_commandList->RSSetScissorRects(1, scissorsRects);
 
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+	                                                    D3D12_RESOURCE_STATE_PRESENT,
+	                                                    D3D12_RESOURCE_STATE_RENDER_TARGET);
 	m_commandList->ResourceBarrier(1, &barrier);
 
-	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
+	                                               m_rtvDescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	const float kClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	const float kClearColor[] = {0.0f, 0.2f, 0.4f, 1.0f};
 	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
 
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
-	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+	                                               D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	ThrowIfFailed(m_commandList->Close());
