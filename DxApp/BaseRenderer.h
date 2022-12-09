@@ -15,6 +15,8 @@ public:
 	explicit BaseRenderer(HWND hwnd);
 	~BaseRenderer();
 
+	void RenderScene(D3D12_VIEWPORT viewport);
+
 private:
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
 
@@ -39,6 +41,8 @@ private:
 
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
+
+	void PopulateCommandList(D3D12_VIEWPORT viewport);
 
 	void WaitForPreviousFrame();
 };

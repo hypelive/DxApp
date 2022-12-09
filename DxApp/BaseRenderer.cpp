@@ -42,7 +42,24 @@ BaseRenderer::BaseRenderer(HWND hwnd)
 
 BaseRenderer::~BaseRenderer()
 {
+	WaitForPreviousFrame();
+
+	CloseHandle(m_fenceEvent);
 }
+
+
+void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
+{
+	PopulateCommandList(viewport);
+
+	ID3D12CommandList* commandLists[] = {m_commandList.Get()};
+	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+
+	ThrowIfFailed(m_swapChain->Present(1, 0));
+
+	WaitForPreviousFrame();
+}
+
 
 void BaseRenderer::LoadPipeline(HWND hwnd)
 {
@@ -239,10 +256,47 @@ void BaseRenderer::LoadAssets()
 }
 
 
+void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
+{
+	// Command list allocators can only be reset when the associated 
+	// command lists have finished execution on the GPU; apps should use 
+	// fences to determine GPU execution progress.
+
+	ThrowIfFailed(m_commandAllocator->Reset());
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+
+	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+	D3D12_VIEWPORT viewports[] = {viewport};
+	m_commandList->RSSetViewports(1, viewports);
+	D3D12_RECT scissorsRects[] = {
+		{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
+	};
+	m_commandList->RSSetScissorRects(1, scissorsRects);
+
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	m_commandList->ResourceBarrier(1, &barrier);
+
+	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+	const float kClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
+	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+
+	m_commandList->DrawInstanced(3, 1, 0, 0);
+
+	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	m_commandList->ResourceBarrier(1, &barrier);
+
+	ThrowIfFailed(m_commandList->Close());
+}
+
+
 //TODO not use this
 void BaseRenderer::WaitForPreviousFrame()
 {
-   // Signal and increment the fence value.
+	// Signal and increment the fence value.
 	const UINT64 fence = m_fenceValue;
 	ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), fence));
 	m_fenceValue++;

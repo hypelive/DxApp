@@ -43,21 +43,34 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     auto baseRenderer = BaseRenderer(hwnd);
 
-    MSG msg;
-
-    // Цикл основного сообщения:
-    while (GetMessage(&msg, nullptr, 0, 0))
+    MSG msg{};
+    while (true)
     {
-
-
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+        if (msg.message == WM_QUIT)
+        {
+            break;
+        }
+
+        RECT winRect;
+        GetClientRect(hwnd, &winRect);
+        D3D12_VIEWPORT viewport = {
+            0.0f,
+            0.0f,
+            static_cast<float>(winRect.right - winRect.left),
+            static_cast<float>(winRect.bottom - winRect.top),
+            0.0f,
+            1.0f
+        };
+
+        baseRenderer.RenderScene(viewport);
     }
 
-    return (int) msg.wParam;
+    return static_cast<int>(msg.wParam);
 }
 
 
