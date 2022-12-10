@@ -1,36 +1,18 @@
 #pragma once
 
-#include <exception>
-#include <stdio.h>
+#include <intrin.h>
 
-namespace DXHelper
+namespace DxHelper
 {
-	// Helper class for COM exceptions
-	class ComException : public std::exception
-	{
-	public:
-		ComException(HRESULT hr) : result(hr)
-		{
-		}
-
-		const char* what() const override
-		{
-			static char s_str[64] = {};
-			sprintf_s(s_str, "Failure with HRESULT of %08X",
-			          static_cast<unsigned int>(result));
-			return s_str;
-		}
-
-	private:
-		HRESULT result;
-	};
-
-	// Helper utility converts D3D API failures into exceptions.
-	inline void ThrowIfFailed(HRESULT hr)
+	inline void DxVerify(HRESULT hr)
 	{
 		if (FAILED(hr))
 		{
-			throw ComException(hr);
+			// Log message
+
+#ifdef _DEBUG
+			__debugbreak();
+#endif
 		}
 	}
 }

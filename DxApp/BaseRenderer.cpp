@@ -6,7 +6,7 @@
 #include "BaseRenderer.h"
 
 
-using namespace DXHelper;
+using namespace DxHelper;
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
@@ -56,7 +56,7 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 	ID3D12CommandList* commandLists[] = {m_commandList.Get()};
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
-	ThrowIfFailed(m_swapChain->Present(1, 0));
+	DxVerify(m_swapChain->Present(1, 0));
 
 	WaitForPreviousFrame();
 }
@@ -74,14 +74,14 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 	}
 
 	ComPtr<IDXGIFactory4> factory;
-	ThrowIfFailed(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
+	DxVerify(CreateDXGIFactory(IID_PPV_ARGS(&factory)));
 
 	// Device
 	{
 		ComPtr<IDXGIAdapter> hardwareAdapter;
 		GetHardwareAdapter(factory.Get(), &hardwareAdapter);
 
-		ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device)));
+		DxVerify(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device)));
 	}
 
 	// Command queue
@@ -89,7 +89,7 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
 		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-		ThrowIfFailed(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
+		DxVerify(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 	}
 
 	// Swap chain
@@ -104,13 +104,13 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		swapChainDesc.SampleDesc.Count = 1;
 		swapChainDesc.Windowed = TRUE;
 
-		ThrowIfFailed(factory->CreateSwapChain(m_commandQueue.Get(), &swapChainDesc, &swapChain));
+		DxVerify(factory->CreateSwapChain(m_commandQueue.Get(), &swapChainDesc, &swapChain));
 
-		ThrowIfFailed(swapChain.As(&m_swapChain));
+		DxVerify(swapChain.As(&m_swapChain));
 		m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 		// Turn off transition to full screen
-		ThrowIfFailed(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
+		DxVerify(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
 	}
 
 	// Descriptor heap
@@ -119,7 +119,7 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		rtvHeapDesc.NumDescriptors = kSwapChainBuffersCount;
 		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-		ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
+		DxVerify(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
@@ -131,13 +131,13 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		// Create a RTV for each frame.
 		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
 		{
-			ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
+			DxVerify(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
 			m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
 			rtvHandle.Offset(1, m_rtvDescriptorSize);
 		}
 	}
 
-	ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+	DxVerify(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 }
 
 
@@ -151,9 +151,9 @@ void BaseRenderer::LoadAssets()
 		ComPtr<ID3DBlob> signature;
 		ComPtr<ID3DBlob> error;
 
-		ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature,
+		DxVerify(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature,
 		                                          &error));
-		ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(),
+		DxVerify(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(),
 		                                            IID_PPV_ARGS(&m_rootSignature)));
 	}
 
@@ -169,9 +169,9 @@ void BaseRenderer::LoadAssets()
 		uint32_t compileFlags = 0;
 #endif
 
-		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0",
+		DxVerify(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0",
 		                                 compileFlags, 0, &vertexShader, nullptr));
-		ThrowIfFailed(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0",
+		DxVerify(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0",
 		                                 compileFlags, 0, &pixelShader, nullptr));
 
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
@@ -197,14 +197,14 @@ void BaseRenderer::LoadAssets()
 		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 		psoDesc.SampleDesc.Count = 1;
 
-		ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
+		DxVerify(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
 	}
 
 	// Command list
 	{
-		ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
+		DxVerify(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
 		                                          m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
-		ThrowIfFailed(m_commandList->Close());
+		DxVerify(m_commandList->Close());
 	}
 
 	// Vertex buffer
@@ -227,13 +227,13 @@ void BaseRenderer::LoadAssets()
 		// TODO Default Heap
 		CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
 		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-		ThrowIfFailed(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
+		DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
 		                                                D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
 		                                                IID_PPV_ARGS(&m_vertexBuffer)));
 
 		uint8_t* vertexDataPointer;
 		auto readRange = CD3DX12_RANGE(0, 0);
-		ThrowIfFailed(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&vertexDataPointer)));
+		DxVerify(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&vertexDataPointer)));
 		memcpy(vertexDataPointer, kTriangleVertices, vertexBufferSize);
 		m_vertexBuffer->Unmap(0, nullptr);
 
@@ -244,13 +244,13 @@ void BaseRenderer::LoadAssets()
 
 	// Synchronization
 	{
-		ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+		DxVerify(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 		m_fenceValue = 1;
 
 		m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 		if (m_fenceEvent == nullptr)
 		{
-			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+			DxVerify(HRESULT_FROM_WIN32(GetLastError()));
 		}
 
 		WaitForPreviousFrame();
@@ -264,8 +264,8 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	// command lists have finished execution on the GPU; apps should use 
 	// fences to determine GPU execution progress.
 
-	ThrowIfFailed(m_commandAllocator->Reset());
-	ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+	DxVerify(m_commandAllocator->Reset());
+	DxVerify(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
 
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 	D3D12_VIEWPORT viewports[] = {viewport};
@@ -295,7 +295,7 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	                                               D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	m_commandList->ResourceBarrier(1, &barrier);
 
-	ThrowIfFailed(m_commandList->Close());
+	DxVerify(m_commandList->Close());
 }
 
 
@@ -304,13 +304,13 @@ void BaseRenderer::WaitForPreviousFrame()
 {
 	// Signal and increment the fence value.
 	const UINT64 fence = m_fenceValue;
-	ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), fence));
+	DxVerify(m_commandQueue->Signal(m_fence.Get(), fence));
 	m_fenceValue++;
 
 	// Wait until the previous frame is finished.
 	if (m_fence->GetCompletedValue() < fence)
 	{
-		ThrowIfFailed(m_fence->SetEventOnCompletion(fence, m_fenceEvent));
+		DxVerify(m_fence->SetEventOnCompletion(fence, m_fenceEvent));
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
