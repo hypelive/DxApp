@@ -34,6 +34,9 @@ private:
 	ComPtr<ID3D12Resource> m_vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
+	ComPtr<ID3D12Resource> m_indexBuffer;
+	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
+
 	uint32_t m_frameIndex;
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
@@ -41,6 +44,7 @@ private:
 
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
+	void LoadScene();
 
 	void PopulateCommandList(D3D12_VIEWPORT viewport);
 

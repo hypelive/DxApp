@@ -1,7 +1,14 @@
-#include "d3d12sdklayers.h"
-#include "d3dx12.h"
-#include "d3dcompiler.h"
-#include "DirectXMath.h"
+#include <vector>
+
+#include <d3d12sdklayers.h>
+#include <d3dx12.h>
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
+
+#include <assimp/cimport.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #include "DxHelpers.h"
 #include "BaseRenderer.h"
 
@@ -53,7 +60,7 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 {
 	PopulateCommandList(viewport);
 
-	ID3D12CommandList* commandLists[] = {m_commandList.Get()};
+	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
 	DxVerify(m_swapChain->Present(1, 0));
@@ -152,9 +159,9 @@ void BaseRenderer::LoadAssets()
 		ComPtr<ID3DBlob> error;
 
 		DxVerify(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature,
-		                                          &error));
+			&error));
 		DxVerify(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(),
-		                                            IID_PPV_ARGS(&m_rootSignature)));
+			IID_PPV_ARGS(&m_rootSignature)));
 	}
 
 	// Pipeline state object
@@ -170,9 +177,9 @@ void BaseRenderer::LoadAssets()
 #endif
 
 		DxVerify(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0",
-		                                 compileFlags, 0, &vertexShader, nullptr));
+			compileFlags, 0, &vertexShader, nullptr));
 		DxVerify(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0",
-		                                 compileFlags, 0, &pixelShader, nullptr));
+			compileFlags, 0, &pixelShader, nullptr));
 
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
 			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -183,10 +190,10 @@ void BaseRenderer::LoadAssets()
 		};
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.InputLayout = {inputElementDescs, _countof(inputElementDescs)};
+		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 		psoDesc.pRootSignature = m_rootSignature.Get();
-		psoDesc.VS = {reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize()};
-		psoDesc.PS = {reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize()};
+		psoDesc.VS = { reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
+		psoDesc.PS = { reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable = false;
@@ -203,44 +210,12 @@ void BaseRenderer::LoadAssets()
 	// Command list
 	{
 		DxVerify(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
-		                                          m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+			m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 		DxVerify(m_commandList->Close());
 	}
 
-	// Vertex buffer
-	{
-		struct Vertex
-		{
-			XMFLOAT3 position;
-			XMFLOAT4 color;
-		};
-
-		const Vertex kTriangleVertices[] =
-		{
-			{{0.0f, 0.25f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-			{{0.25f, -0.25f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-			{{-0.25f, -0.25f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}
-		};
-
-		uint32_t vertexBufferSize = sizeof(kTriangleVertices);
-
-		// TODO Default Heap
-		CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
-		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-		DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
-		                                                D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-		                                                IID_PPV_ARGS(&m_vertexBuffer)));
-
-		uint8_t* vertexDataPointer;
-		auto readRange = CD3DX12_RANGE(0, 0);
-		DxVerify(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&vertexDataPointer)));
-		memcpy(vertexDataPointer, kTriangleVertices, vertexBufferSize);
-		m_vertexBuffer->Unmap(0, nullptr);
-
-		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-		m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	}
+	// Vertex and Index buffers initialization
+	LoadScene();
 
 	// Synchronization
 	{
@@ -258,6 +233,79 @@ void BaseRenderer::LoadAssets()
 }
 
 
+void BaseRenderer::LoadScene()
+{
+	auto* scene = aiImportFile("Scenes/Example.glb", aiProcessPreset_TargetRealtime_MaxQuality);
+
+	// TODO expand to several meshes
+	assert(scene->mNumMeshes > 0);
+
+	struct Vertex
+	{
+		XMFLOAT3 position;
+		XMFLOAT4 color;
+	};
+
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+
+	const auto* mesh = scene->mMeshes[0];
+	vertices.resize(mesh->mNumVertices);
+	for (uint32_t n = 0; n < mesh->mNumVertices; n++)
+	{
+		const auto& position = mesh->mVertices[n];
+		const auto& color = mesh->mColors[0][n];
+
+		vertices[n].position = XMFLOAT3(position.x, position.y, position.z);
+		vertices[n].color = XMFLOAT4(color.r, color.g, color.b, color.a);
+	}
+
+	// Support only triangles
+	// TODO Add support for other primitive types
+	// TODO check CW CCW
+	indices.reserve(mesh->mNumFaces * 3);
+	for (uint32_t primitiveIndex = 0; primitiveIndex < mesh->mNumFaces; primitiveIndex++)
+	{
+		const auto& primitive = mesh->mFaces[primitiveIndex];
+
+		for (uint32_t n = 0; n < primitive.mNumIndices; n++)
+		{
+			indices.push_back(primitive.mIndices[n]);
+		}
+	}
+
+	uint32_t vertexBufferSize = static_cast<uint32_t>(vertices.size()) * sizeof(Vertex);
+	uint32_t indexBufferSize = static_cast<uint32_t>(indices.size()) * sizeof(uint32_t);
+
+	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
+	auto vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+	auto indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
+	DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_vertexBuffer)));
+	DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &indexBufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
+
+	uint8_t* dataPointer;
+	const auto readRange = CD3DX12_RANGE(0, 0);
+
+	DxVerify(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
+	memcpy(dataPointer, vertices.data(), vertexBufferSize);
+	m_vertexBuffer->Unmap(0, nullptr);
+
+	m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+	m_vertexBufferView.SizeInBytes = vertexBufferSize;
+	m_vertexBufferView.StrideInBytes = sizeof(Vertex);
+
+	DxVerify(m_indexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
+	memcpy(dataPointer, indices.data(), indexBufferSize);
+	m_indexBuffer->Unmap(0, nullptr);
+
+	m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
+	m_indexBufferView.SizeInBytes = indexBufferSize;
+	m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+}
+
+
 void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 {
 	// Command list allocators can only be reset when the associated 
@@ -268,7 +316,7 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	DxVerify(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
 
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-	D3D12_VIEWPORT viewports[] = {viewport};
+	D3D12_VIEWPORT viewports[] = { viewport };
 	m_commandList->RSSetViewports(1, viewports);
 	D3D12_RECT scissorsRects[] = {
 		{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
@@ -276,23 +324,25 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	m_commandList->RSSetScissorRects(1, scissorsRects);
 
 	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-	                                                    D3D12_RESOURCE_STATE_PRESENT,
-	                                                    D3D12_RESOURCE_STATE_RENDER_TARGET);
+		D3D12_RESOURCE_STATE_PRESENT,
+		D3D12_RESOURCE_STATE_RENDER_TARGET);
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
-	                                               m_rtvDescriptorSize);
+		m_rtvDescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	const float kClearColor[] = {0.0f, 0.2f, 0.4f, 1.0f};
+	const float kClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+	//m_commandList->IASetIndexBuffer(&m_indexBufferView);
 
 	m_commandList->DrawInstanced(3, 1, 0, 0);
+	//m_commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-	                                               D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	DxVerify(m_commandList->Close());
