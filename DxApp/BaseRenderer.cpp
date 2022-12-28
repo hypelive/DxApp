@@ -41,7 +41,7 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 }
 
 
-BaseRenderer::BaseRenderer(HWND hwnd)
+BaseRenderer::BaseRenderer(HWND hwnd) : m_camera(XMFLOAT3(0.0f, 0.0f, 5.0f))
 {
 	LoadPipeline(hwnd);
 	LoadAssets();
@@ -195,6 +195,8 @@ void BaseRenderer::LoadAssets()
 		psoDesc.VS = { reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
 		psoDesc.PS = { reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		// TODO D3D12_CULL_MODE_BACK
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 		psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable = false;
 		psoDesc.DepthStencilState.StencilEnable = false;
@@ -336,10 +338,9 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-	//m_commandList->IASetIndexBuffer(&m_indexBufferView);
+	m_commandList->IASetIndexBuffer(&m_indexBufferView);
 
-	m_commandList->DrawInstanced(3, 1, 0, 0);
-	//m_commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	m_commandList->DrawIndexedInstanced(m_indexBufferView.SizeInBytes / sizeof(uint32_t), 1, 0, 0, 0);
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);

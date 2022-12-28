@@ -135,6 +135,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BaseRenderer.h" />
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="DxApp.h" />
     <ClInclude Include="DxHelpers.h" />
     <ClInclude Include="framework.h" />
@@ -143,6 +144,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BaseRenderer.cpp" />
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DxApp.cpp" />
   </ItemGroup>
   <ItemGroup>

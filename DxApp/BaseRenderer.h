@@ -1,13 +1,18 @@
 #pragma once
 
-#include "stdint.h"
-#include "d3d12.h"
-#include "dxgi1_4.h"
-#include "wrl.h"
+#include <stdint.h>
+#include <d3d12.h>
+#include <dxgi1_4.h>
+#include <wrl.h>
+
+// TODO to Scene class
+#include "Camera.h"
 
 
 using namespace Microsoft::WRL;
 
+// TODO port Scene class from https://github.com/hypelive/VulkanApp
+// AND change signature to RenderScene(Viewport, Scene) ?
 class BaseRenderer
 {
 public:
@@ -41,6 +46,9 @@ private:
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
 	uint64_t m_fenceValue;
+
+	// TODO to Scene class
+	Camera m_camera;
 
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
