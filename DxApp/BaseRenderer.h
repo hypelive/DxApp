@@ -7,6 +7,7 @@
 
 // TODO to Scene class
 #include "Camera.h"
+#include "SceneObjectConstantBuffer.h"
 
 
 using namespace Microsoft::WRL;
@@ -21,6 +22,9 @@ public:
 	~BaseRenderer();
 
 	void RenderScene(D3D12_VIEWPORT viewport);
+
+	// TODO camera to scene
+	Camera& GetCamera();
 
 private:
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
@@ -42,6 +46,10 @@ private:
 	ComPtr<ID3D12Resource> m_indexBuffer;
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
+	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
+	ComPtr<ID3D12Resource> m_constantBufferUploadHeap;
+	//uint8_t* m_cbGPUAddress[kSwapChainBuffersCount] = { nullptr };
+
 	uint32_t m_frameIndex;
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
@@ -53,6 +61,10 @@ private:
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
 	void LoadScene();
+	void CreateRootDescriptorTableResources();
+
+	// cb data, sceneObjectsData, lightsData, etc
+	void UpdateData(float appAspect);
 
 	void PopulateCommandList(D3D12_VIEWPORT viewport);
 

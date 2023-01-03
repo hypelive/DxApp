@@ -36,6 +36,9 @@
     <ClInclude Include="Camera.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
+    <ClInclude Include="SceneObjectConstantBuffer.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DxApp.cpp">

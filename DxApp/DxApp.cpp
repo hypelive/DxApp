@@ -1,14 +1,48 @@
 ﻿// DxApp.cpp : Определяет точку входа для приложения.
 //
 
+#include <chrono>
+
+#include <d3d12.h>
+#include <DirectXMath.h>
+
 #include "framework.h"
 #include "DxApp.h"
-#include "d3d12.h"
-
 #include "BaseRenderer.h"
 
 
 #define MAX_LOADSTRING 100
+
+struct AppState
+{
+	bool upPressed;
+	bool downPressed;
+	bool rightPressed;
+	bool leftPressed;
+
+	// TODO deltas for rotation
+};
+
+static constexpr float kCameraSpeed = 0.01f;
+
+
+// in seconds
+static float getTime()
+{
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+}
+
+
+inline AppState* GetAppState(HWND hwnd)
+{
+	LONG_PTR ptr = GetWindowLongPtr(hwnd, GWLP_USERDATA);
+	AppState* pState = reinterpret_cast<AppState*>(ptr);
+	return pState;
+}
+
 
 // Глобальные переменные:
 HINSTANCE hInst; // текущий экземпляр
@@ -17,7 +51,7 @@ WCHAR szWindowClass[MAX_LOADSTRING]; // имя класса главного о�
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM MyRegisterClass(HINSTANCE hInstance);
-HWND InitInstance(HINSTANCE, int);
+HWND InitInstance(HINSTANCE, int, AppState*);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 
@@ -34,7 +68,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	LoadStringW(hInstance, IDC_DXAPP, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 
-	HWND hwnd = InitInstance(hInstance, nCmdShow);
+	AppState* pState = new AppState{};
+
+	HWND hwnd = InitInstance(hInstance, nCmdShow, pState);
 
 	if (hwnd == nullptr)
 		return FALSE;
@@ -54,6 +90,24 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		if (msg.message == WM_QUIT)
 		{
 			break;
+		}
+
+		AppState* pState = GetAppState(hwnd);
+		if (pState)
+		{
+			Camera& camera = baseRenderer.GetCamera();
+			XMFLOAT3 cameraTranslation;
+			XMStoreFloat3(&cameraTranslation, XMVectorZero());
+			if (pState->upPressed)
+				cameraTranslation.z += kCameraSpeed;
+			if (pState->downPressed)
+				cameraTranslation.z -= kCameraSpeed;
+			if (pState->rightPressed)
+				cameraTranslation.x += kCameraSpeed;
+			if (pState->leftPressed)
+				cameraTranslation.x -= kCameraSpeed;
+			// TODO chrono bounding
+			camera.Translate(cameraTranslation);
 		}
 
 		RECT winRect;
@@ -110,13 +164,12 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //        В этой функции маркер экземпляра сохраняется в глобальной переменной, а также
 //        создается и выводится главное окно программы.
 //
-HWND InitInstance(HINSTANCE hInstance, int nCmdShow)
+HWND InitInstance(HINSTANCE hInstance, int nCmdShow, AppState* pState)
 {
-	//TODO fullscreen
 	hInst = hInstance; // Сохранить маркер экземпляра в глобальной переменной
 
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	                          CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+	                          CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, pState);
 
 	if (hWnd)
 	{
@@ -126,6 +179,7 @@ HWND InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	return hWnd;
 }
+
 
 //
 //  ФУНКЦИЯ: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -139,8 +193,31 @@ HWND InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	AppState* pState;
+	if (message == WM_CREATE)
+	{
+		CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+		pState = reinterpret_cast<AppState*>(pCreate->lpCreateParams);
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pState);
+	}
+	else
+	{
+		pState = GetAppState(hWnd);
+	}
+
 	switch (message)
 	{
+	case WM_KEYDOWN:
+		// TODO other cases)
+		switch (wParam)
+		{
+		case 0x57: // W
+			pState->upPressed = true;
+			break;
+		}
+
+		return 0;
+
 	case WM_COMMAND:
 		{
 			int wmId = LOWORD(wParam);
@@ -156,14 +233,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			default:
 				return DefWindowProc(hWnd, message, wParam, lParam);
 			}
-		}
-		break;
-	case WM_PAINT:
-		{
-			PAINTSTRUCT ps;
-			HDC hdc = BeginPaint(hWnd, &ps);
-			// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
-			EndPaint(hWnd, &ps);
 		}
 		break;
 	case WM_DESTROY:

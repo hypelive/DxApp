@@ -41,7 +41,7 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 }
 
 
-BaseRenderer::BaseRenderer(HWND hwnd) : m_camera(XMFLOAT3(0.0f, 0.0f, 5.0f))
+BaseRenderer::BaseRenderer(HWND hwnd) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 {
 	LoadPipeline(hwnd);
 	LoadAssets();
@@ -58,6 +58,8 @@ BaseRenderer::~BaseRenderer()
 
 void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 {
+	UpdateData(viewport.Width / viewport.Height);
+
 	PopulateCommandList(viewport);
 
 	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
@@ -66,6 +68,12 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 	DxVerify(m_swapChain->Present(1, 0));
 
 	WaitForPreviousFrame();
+}
+
+
+Camera& BaseRenderer::GetCamera()
+{
+	return m_camera;
 }
 
 
@@ -152,8 +160,24 @@ void BaseRenderer::LoadAssets()
 {
 	// Root signature
 	{
+		D3D12_DESCRIPTOR_RANGE descriptorRanges[1] = {};
+		descriptorRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		descriptorRanges[0].NumDescriptors = 1;
+		descriptorRanges[0].BaseShaderRegister = 0;
+		descriptorRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		descriptorRanges[0].RegisterSpace = 0; // ?
+
+		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable = {};
+		descriptorTable.NumDescriptorRanges = 1;
+		descriptorTable.pDescriptorRanges = descriptorRanges;
+
+		D3D12_ROOT_PARAMETER rootParameters[1] = {};
+		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParameters[0].DescriptorTable = descriptorTable;
+		rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 		ComPtr<ID3DBlob> signature;
 		ComPtr<ID3DBlob> error;
@@ -219,6 +243,8 @@ void BaseRenderer::LoadAssets()
 	// Vertex and Index buffers initialization
 	LoadScene();
 
+	CreateRootDescriptorTableResources();
+
 	// Synchronization
 	{
 		DxVerify(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
@@ -279,6 +305,7 @@ void BaseRenderer::LoadScene()
 	uint32_t vertexBufferSize = static_cast<uint32_t>(vertices.size()) * sizeof(Vertex);
 	uint32_t indexBufferSize = static_cast<uint32_t>(indices.size()) * sizeof(uint32_t);
 
+	// TODO DefaultHeap to not upload this buffers every frame?
 	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
 	auto vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
 	auto indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
@@ -308,6 +335,59 @@ void BaseRenderer::LoadScene()
 }
 
 
+void BaseRenderer::CreateRootDescriptorTableResources()
+{
+	// for swapChain frame count
+	// {
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	DxVerify(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
+
+	const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64);
+	DxVerify(m_device->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDesc, // alignment
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&m_constantBufferUploadHeap)));
+	m_constantBufferUploadHeap->SetName(L"Constant Buffer Upload Resource Heap");
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = m_constantBufferUploadHeap->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = (sizeof(SceneObjectConstantBuffer) + 255) & ~255; // 256 byte alignment
+	m_device->CreateConstantBufferView(&cbvDesc, m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	// }
+}
+
+
+void BaseRenderer::UpdateData(float appAspect)
+{
+	SceneObjectConstantBuffer sceneObjectData;
+	XMStoreFloat4x4(&sceneObjectData.model, XMMatrixIdentity());
+	sceneObjectData.view = m_camera.GetViewMatrix();
+	sceneObjectData.projection = m_camera.GetProjectionMatrix(appAspect);
+
+	XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
+	XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
+	XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
+
+	XMMATRIX vpMatrix = XMMatrixMultiply(projectionMatrix, viewMatrix);
+
+	XMStoreFloat4x4(&sceneObjectData.vp, vpMatrix);
+	XMStoreFloat4x4(&sceneObjectData.mvp, XMMatrixMultiply(vpMatrix, modelMatrix));
+
+	uint8_t* constantBufferData;
+	const auto readRange = CD3DX12_RANGE(0, 0);
+	DxVerify(m_constantBufferUploadHeap->Map(0, &readRange, reinterpret_cast<void**>(&constantBufferData)));
+	memcpy(constantBufferData, &sceneObjectData, sizeof(sceneObjectData));
+	m_constantBufferUploadHeap->Unmap(0, nullptr);
+}
+
+
 void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 {
 	// Command list allocators can only be reset when the associated 
@@ -325,6 +405,10 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	};
 	m_commandList->RSSetScissorRects(1, scissorsRects);
 
+	ID3D12DescriptorHeap* descriptorHeaps[] = { m_descriptorHeap.Get() };
+	m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+	m_commandList->SetGraphicsRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
 	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
 		D3D12_RESOURCE_STATE_PRESENT,
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -334,7 +418,7 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 		m_rtvDescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	const float kClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	const float kClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
