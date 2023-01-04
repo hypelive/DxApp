@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "Camera.h"
 
 
@@ -24,12 +26,20 @@ void Camera::Translate(const XMFLOAT3 offset)
 
 void Camera::Rotate(const XMFLOAT2 angles)
 {
-	// TODO
+	m_yaw += angles.x;
+	if (m_yaw > XM_PI)
+		m_yaw -= XM_2PI;
+	if (m_yaw <= -XM_PI)
+		m_yaw += XM_2PI;
+
+	m_pitch = std::clamp(m_pitch + angles.y, -XM_PIDIV2 + kEpsilon, XM_PIDIV2 - kEpsilon);
+
+	UpdateOrientation();
 }
 
 
 // TODO LH?
-XMFLOAT4X4 Camera::GetViewMatrix()
+XMFLOAT4X4 Camera::GetViewMatrix() const
 {
 	const XMVECTOR positionVec = XMLoadFloat3(&m_position);
 	const XMVECTOR upVec = XMLoadFloat3(&m_up);
@@ -41,7 +51,7 @@ XMFLOAT4X4 Camera::GetViewMatrix()
 }
 
 
-XMFLOAT4X4 Camera::GetProjectionMatrix(float appAspect)
+XMFLOAT4X4 Camera::GetProjectionMatrix(const float appAspect) const
 {
 	XMFLOAT4X4 projectionMatrix = {};
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixPerspectiveFovRH(kFovY, appAspect, kNearClipPlane, kFarClipPlane));
@@ -49,7 +59,7 @@ XMFLOAT4X4 Camera::GetProjectionMatrix(float appAspect)
 }
 
 
-XMFLOAT3 Camera::GetPosition()
+XMFLOAT3 Camera::GetPosition() const
 {
 	return m_position;
 }

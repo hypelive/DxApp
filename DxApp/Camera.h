@@ -14,9 +14,9 @@ public:
 	void Translate(XMFLOAT3 offset);
 	void Rotate(XMFLOAT2 angles);
 
-	XMFLOAT4X4 GetViewMatrix();
-	XMFLOAT4X4 GetProjectionMatrix(float appAspect);
-	XMFLOAT3 GetPosition();
+	XMFLOAT4X4 GetViewMatrix() const;
+	XMFLOAT4X4 GetProjectionMatrix(float appAspect) const;
+	XMFLOAT3 GetPosition() const;
 
 private:
 	XMFLOAT3 m_position{};

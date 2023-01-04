@@ -20,19 +20,36 @@ struct AppState
 	bool rightPressed;
 	bool leftPressed;
 
-	// TODO deltas for rotation
+	bool secondaryMBPressed;
+
+	float mouseXPos;
+	float mouseYPos;
+
+	float mouseXPosDelta;
+	float mouseYPosDelta;
 };
 
-static constexpr float kCameraSpeed = 0.01f;
+static constexpr float kCameraSpeed = 1.0f;
+static constexpr float kCameraRotationSpeed = 0.01f;
 
+static float GCurrentTime;
+static float GDeltaTime;
 
 // in seconds
-static float getTime()
+static float GetTime()
 {
 	static auto startTime = std::chrono::high_resolution_clock::now();
 
-	auto currentTime = std::chrono::high_resolution_clock::now();
+	const auto currentTime = std::chrono::high_resolution_clock::now();
 	return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+}
+
+
+static void UpdateGlobalConstants()
+{
+	const auto currentTime = GetTime();
+	GDeltaTime = currentTime - GCurrentTime;
+	GCurrentTime = currentTime;
 }
 
 
@@ -92,22 +109,34 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			break;
 		}
 
+		UpdateGlobalConstants();
+
 		AppState* pState = GetAppState(hwnd);
 		if (pState)
 		{
+			const float cameraOffset = kCameraSpeed * GDeltaTime;
+
 			Camera& camera = baseRenderer.GetCamera();
 			XMFLOAT3 cameraTranslation;
 			XMStoreFloat3(&cameraTranslation, XMVectorZero());
 			if (pState->upPressed)
-				cameraTranslation.z += kCameraSpeed;
+				cameraTranslation.z += cameraOffset;
 			if (pState->downPressed)
-				cameraTranslation.z -= kCameraSpeed;
+				cameraTranslation.z -= cameraOffset;
 			if (pState->rightPressed)
-				cameraTranslation.x += kCameraSpeed;
+				cameraTranslation.x += cameraOffset;
 			if (pState->leftPressed)
-				cameraTranslation.x -= kCameraSpeed;
-			// TODO chrono bounding
+				cameraTranslation.x -= cameraOffset;
+
 			camera.Translate(cameraTranslation);
+
+			if (pState->secondaryMBPressed)
+			{
+				camera.Rotate(XMFLOAT2(pState->mouseXPosDelta * kCameraRotationSpeed, -pState->mouseYPosDelta * kCameraRotationSpeed));
+				pState->mouseXPosDelta = 0.0f;
+				pState->mouseYPosDelta = 0.0f;
+			}
+
 		}
 
 		RECT winRect;
@@ -185,12 +214,6 @@ HWND InitInstance(HINSTANCE hInstance, int nCmdShow, AppState* pState)
 //  ФУНКЦИЯ: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
 //  ЦЕЛЬ: Обрабатывает сообщения в главном окне.
-//
-//  WM_COMMAND  - обработать меню приложения
-//  WM_PAINT    - Отрисовка главного окна
-//  WM_DESTROY  - отправить сообщение о выходе и вернуться
-//
-//
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	AppState* pState;
@@ -205,14 +228,74 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		pState = GetAppState(hWnd);
 	}
 
+	float xPos, yPos;
+
 	switch (message)
 	{
+	case WM_RBUTTONDOWN:
+		SetCapture(hWnd);
+		pState->secondaryMBPressed = true;
+
+		xPos = static_cast<float>(GET_X_LPARAM(lParam));
+		yPos = static_cast<float>(GET_Y_LPARAM(lParam));
+		pState->mouseXPos = xPos;
+		pState->mouseYPos = yPos;
+
+		return 0;
+
+	case WM_RBUTTONUP:
+		ReleaseCapture();
+		pState->secondaryMBPressed = false;
+		return 0;
+
+	case WM_MOUSEMOVE:
+
+		if (pState->secondaryMBPressed)
+		{
+			xPos = static_cast<float>(GET_X_LPARAM(lParam));
+			yPos = static_cast<float>(GET_Y_LPARAM(lParam));
+
+			pState->mouseXPosDelta = xPos - pState->mouseXPos;
+			pState->mouseYPosDelta = yPos - pState->mouseYPos;
+			pState->mouseXPos = xPos;
+			pState->mouseYPos = yPos;
+		}
+
+		return 0;
+
 	case WM_KEYDOWN:
-		// TODO other cases)
 		switch (wParam)
 		{
-		case 0x57: // W
+		case 'W':
 			pState->upPressed = true;
+			break;
+		case 'A':
+			pState->leftPressed = true;
+			break;
+		case 'S':
+			pState->downPressed = true;
+			break;
+		case 'D':
+			pState->rightPressed = true;
+			break;
+		}
+
+		return 0;
+
+	case WM_KEYUP:
+		switch (wParam)
+		{
+		case 'W':
+			pState->upPressed = false;
+			break;
+		case 'A':
+			pState->leftPressed = false;
+			break;
+		case 'S':
+			pState->downPressed = false;
+			break;
+		case 'D':
+			pState->rightPressed = false;
 			break;
 		}
 

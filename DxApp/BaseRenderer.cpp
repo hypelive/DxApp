@@ -219,8 +219,7 @@ void BaseRenderer::LoadAssets()
 		psoDesc.VS = { reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
 		psoDesc.PS = { reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		// TODO D3D12_CULL_MODE_BACK
-		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 		psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState.DepthEnable = false;
 		psoDesc.DepthStencilState.StencilEnable = false;
@@ -375,10 +374,10 @@ void BaseRenderer::UpdateData(float appAspect)
 	XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
 	XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
 
-	XMMATRIX vpMatrix = XMMatrixMultiply(projectionMatrix, viewMatrix);
+	XMMATRIX vpMatrix = XMMatrixMultiply(viewMatrix, projectionMatrix);
 
 	XMStoreFloat4x4(&sceneObjectData.vp, vpMatrix);
-	XMStoreFloat4x4(&sceneObjectData.mvp, XMMatrixMultiply(vpMatrix, modelMatrix));
+	XMStoreFloat4x4(&sceneObjectData.mvp, XMMatrixMultiply(modelMatrix, vpMatrix));
 
 	uint8_t* constantBufferData;
 	const auto readRange = CD3DX12_RANGE(0, 0);
