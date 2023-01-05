@@ -18,7 +18,7 @@ class BaseRenderer
 {
 public:
 	BaseRenderer() = delete;
-	explicit BaseRenderer(HWND hwnd);
+	explicit BaseRenderer(HWND hwnd, uint32_t windowWidth = 0, uint32_t windowHeight = 0);
 	~BaseRenderer();
 
 	void RenderScene(D3D12_VIEWPORT viewport);
@@ -34,11 +34,14 @@ private:
 	ComPtr<IDXGISwapChain3> m_swapChain;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12Resource> m_renderTargets[kSwapChainBuffersCount];
+	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+	ComPtr<ID3D12Resource> m_depthStencilResources[kSwapChainBuffersCount];
 	ComPtr<ID3D12CommandAllocator> m_commandAllocator;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	uint32_t m_rtvDescriptorSize = 0;
+	uint32_t m_dsvDescriptorSize = 0;
 
 	ComPtr<ID3D12Resource> m_vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
@@ -57,6 +60,9 @@ private:
 
 	// TODO to Scene class
 	Camera m_camera;
+
+	uint32_t m_windowWidth;
+	uint32_t m_windowHeight;
 
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();

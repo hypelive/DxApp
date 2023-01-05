@@ -41,7 +41,8 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 }
 
 
-BaseRenderer::BaseRenderer(HWND hwnd) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
+BaseRenderer::BaseRenderer(HWND hwnd, uint32_t windowWidth, uint32_t windowHeight) :
+	m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f)), m_windowWidth(windowWidth), m_windowHeight(windowHeight)
 {
 	LoadPipeline(hwnd);
 	LoadAssets();
@@ -137,6 +138,14 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		DxVerify(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+		dsvHeapDesc.NumDescriptors = kSwapChainBuffersCount;
+		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		DxVerify(m_device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
+
+		m_dsvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	}
 
 	// Frame resources
@@ -150,7 +159,29 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 			m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
 			rtvHandle.Offset(1, m_rtvDescriptorSize);
 		}
+
+		CD3DX12_HEAP_PROPERTIES dsHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+		auto dsResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_windowWidth, m_windowHeight);
+		dsResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		D3D12_CLEAR_VALUE dsClearValue = {};
+		dsClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+		dsClearValue.DepthStencil.Depth = 1.0;
+		dsClearValue.DepthStencil.Stencil = 0;
+
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
+		{
+			DxVerify(m_device->CreateCommittedResource(&dsHeapProperties, D3D12_HEAP_FLAG_NONE,
+				&dsResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE,
+				&dsClearValue, IID_PPV_ARGS(&m_depthStencilResources[n])));
+
+			m_device->CreateDepthStencilView(m_depthStencilResources[n].Get(), nullptr, dsvHandle);
+			dsvHandle.Offset(1, m_dsvDescriptorSize);
+		}
 	}
+
+
 
 	DxVerify(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 }
@@ -219,10 +250,14 @@ void BaseRenderer::LoadAssets()
 		psoDesc.VS = { reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
 		psoDesc.PS = { reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState.FrontCounterClockwise = true;
 		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 		psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState.DepthEnable = false;
+		psoDesc.DepthStencilState.DepthEnable = true;
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 		psoDesc.DepthStencilState.StencilEnable = false;
+		psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;
@@ -415,10 +450,14 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
 		m_rtvDescriptorSize);
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
+		m_dsvDescriptorSize);
+	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
 	const float kClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
+	const float kClearDepth = 1.0f;
+	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, kClearDepth, 0, 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
 	m_commandList->IASetIndexBuffer(&m_indexBufferView);
@@ -433,7 +472,7 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 }
 
 
-//TODO not use this
+//TODO not use this every frame
 void BaseRenderer::WaitForPreviousFrame()
 {
 	// Signal and increment the fence value.

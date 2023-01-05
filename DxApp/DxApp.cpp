@@ -29,11 +29,17 @@ struct AppState
 	float mouseYPosDelta;
 };
 
+
+// FULL HD
+static constexpr uint32_t kWindowWidth = 1920;
+static constexpr uint32_t kWindowHeight = 1080;
+
 static constexpr float kCameraSpeed = 1.0f;
 static constexpr float kCameraRotationSpeed = 0.01f;
 
 static float GCurrentTime;
 static float GDeltaTime;
+
 
 // in seconds
 static float GetTime()
@@ -73,9 +79,9 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                      _In_opt_ HINSTANCE hPrevInstance,
-                      _In_ LPWSTR lpCmdLine,
-                      _In_ int nCmdShow)
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPWSTR lpCmdLine,
+	_In_ int nCmdShow)
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
@@ -94,7 +100,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DXAPP));
 
-	auto baseRenderer = BaseRenderer(hwnd);
+	auto baseRenderer = BaseRenderer(hwnd, kWindowWidth, kWindowHeight);
 
 	MSG msg{};
 	while (true)
@@ -139,13 +145,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 		}
 
-		RECT winRect;
-		GetClientRect(hwnd, &winRect);
-		D3D12_VIEWPORT viewport = {
+		constexpr D3D12_VIEWPORT viewport = {
 			0.0f,
 			0.0f,
-			static_cast<float>(winRect.right - winRect.left),
-			static_cast<float>(winRect.bottom - winRect.top),
+			static_cast<float>(kWindowWidth),
+			static_cast<float>(kWindowHeight),
 			0.0f,
 			1.0f
 		};
@@ -197,8 +201,8 @@ HWND InitInstance(HINSTANCE hInstance, int nCmdShow, AppState* pState)
 {
 	hInst = hInstance; // Сохранить маркер экземпляра в глобальной переменной
 
-	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	                          CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, pState);
+	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+		CW_USEDEFAULT, 0, kWindowWidth, kWindowHeight, nullptr, nullptr, hInstance, pState);
 
 	if (hWnd)
 	{
@@ -302,22 +306,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_COMMAND:
+	{
+		int wmId = LOWORD(wParam);
+		// Разобрать выбор в меню:
+		switch (wmId)
 		{
-			int wmId = LOWORD(wParam);
-			// Разобрать выбор в меню:
-			switch (wmId)
-			{
-			case IDM_ABOUT:
-				DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-				break;
-			case IDM_EXIT:
-				DestroyWindow(hWnd);
-				break;
-			default:
-				return DefWindowProc(hWnd, message, wParam, lParam);
-			}
+		case IDM_ABOUT:
+			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+			break;
+		case IDM_EXIT:
+			DestroyWindow(hWnd);
+			break;
+		default:
+			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
-		break;
+	}
+	break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
