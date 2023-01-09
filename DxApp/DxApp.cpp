@@ -102,6 +102,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	auto baseRenderer = BaseRenderer(hwnd, kWindowWidth, kWindowHeight);
 
+	auto lastFrameTime = std::chrono::high_resolution_clock::now();
+
 	MSG msg{};
 	while (true)
 	{
@@ -155,6 +157,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		};
 
 		baseRenderer.RenderScene(viewport);
+
+		auto frameTime = std::chrono::high_resolution_clock::now();
+		OutputDebugString(std::format(L"frameTime: {}\n", std::chrono::duration<float, std::chrono::milliseconds::period>(frameTime - lastFrameTime).count()).c_str());
+		lastFrameTime = frameTime;
 	}
 
 	return static_cast<int>(msg.wParam);

@@ -51,8 +51,7 @@ BaseRenderer::BaseRenderer(HWND hwnd, uint32_t windowWidth, uint32_t windowHeigh
 
 BaseRenderer::~BaseRenderer()
 {
-	WaitForPreviousFrame();
-
+	WaitForGpu();
 	CloseHandle(m_fenceEvent);
 }
 
@@ -63,12 +62,12 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 
 	PopulateCommandList(viewport);
 
-	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
+	ID3D12CommandList* commandLists[] = { m_commandLists[m_frameIndex].Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
-	DxVerify(m_swapChain->Present(1, 0));
+	DxVerify(m_swapChain->Present(0, 0));
 
-	WaitForPreviousFrame();
+	UpdateToNextFrame();
 }
 
 
@@ -181,9 +180,10 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		}
 	}
 
-
-
-	DxVerify(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
+	for (uint32_t i = 0; i < kSwapChainBuffersCount; i++)
+	{
+		DxVerify(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
+	}
 }
 
 
@@ -268,8 +268,9 @@ void BaseRenderer::LoadAssets()
 	}
 
 	// Command list
+	// TODO Device4::CreateCommandList1 - creates closed list
 	{
-		DxVerify(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(),
+		DxVerify(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(),
 			m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 		DxVerify(m_commandList->Close());
 	}
@@ -282,7 +283,8 @@ void BaseRenderer::LoadAssets()
 	// Synchronization
 	{
 		DxVerify(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
-		m_fenceValue = 1;
+
+		m_fenceValues[m_frameIndex] = 1;
 
 		m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 		if (m_fenceEvent == nullptr)
@@ -290,7 +292,7 @@ void BaseRenderer::LoadAssets()
 			DxVerify(HRESULT_FROM_WIN32(GetLastError()));
 		}
 
-		WaitForPreviousFrame();
+		WaitForGpu();
 	}
 }
 
@@ -324,7 +326,6 @@ void BaseRenderer::LoadScene()
 
 	// Support only triangles
 	// TODO Add support for other primitive types
-	// TODO check CW CCW
 	indices.reserve(mesh->mNumFaces * 3);
 	for (uint32_t primitiveIndex = 0; primitiveIndex < mesh->mNumFaces; primitiveIndex++)
 	{
@@ -371,30 +372,36 @@ void BaseRenderer::LoadScene()
 
 void BaseRenderer::CreateRootDescriptorTableResources()
 {
-	// for swapChain frame count
-	// {
+
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 1;
+	heapDesc.NumDescriptors = kSwapChainBuffersCount;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	DxVerify(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
 
-	const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64);
-	DxVerify(m_device->CreateCommittedResource(
-		&heapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&resourceDesc, // alignment
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&m_constantBufferUploadHeap)));
-	m_constantBufferUploadHeap->SetName(L"Constant Buffer Upload Resource Heap");
+	auto descriptorHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	m_cbvSrvUavDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = m_constantBufferUploadHeap->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = (sizeof(SceneObjectConstantBuffer) + 255) & ~255; // 256 byte alignment
-	m_device->CreateConstantBufferView(&cbvDesc, m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	// }
+	for (uint32_t i = 0; i < kSwapChainBuffersCount; i++)
+	{
+		const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64);
+		DxVerify(m_device->CreateCommittedResource(
+			&heapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&resourceDesc, // alignment
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_constantBufferUploadHeaps[i])));
+		m_constantBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = m_constantBufferUploadHeaps[i]->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = (sizeof(SceneObjectConstantBuffer) + 255) & ~255; // 256 byte alignment
+		m_device->CreateConstantBufferView(&cbvDesc, descriptorHandle);
+
+		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
+	}
 }
 
 
@@ -416,76 +423,83 @@ void BaseRenderer::UpdateData(float appAspect)
 
 	uint8_t* constantBufferData;
 	const auto readRange = CD3DX12_RANGE(0, 0);
-	DxVerify(m_constantBufferUploadHeap->Map(0, &readRange, reinterpret_cast<void**>(&constantBufferData)));
+	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&constantBufferData)));
 	memcpy(constantBufferData, &sceneObjectData, sizeof(sceneObjectData));
-	m_constantBufferUploadHeap->Unmap(0, nullptr);
+	m_constantBufferUploadHeaps[m_frameIndex]->Unmap(0, nullptr);
 }
 
 
 void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 {
-	// Command list allocators can only be reset when the associated 
-	// command lists have finished execution on the GPU; apps should use 
-	// fences to determine GPU execution progress.
+	auto* commandList = m_commandList.Get();
 
-	DxVerify(m_commandAllocator->Reset());
-	DxVerify(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+	DxVerify(m_commandAllocators[m_frameIndex]->Reset());
+	DxVerify(commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 
-	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+	commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 	D3D12_VIEWPORT viewports[] = { viewport };
-	m_commandList->RSSetViewports(1, viewports);
+	commandList->RSSetViewports(1, viewports);
 	D3D12_RECT scissorsRects[] = {
 		{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
 	};
-	m_commandList->RSSetScissorRects(1, scissorsRects);
+	commandList->RSSetScissorRects(1, scissorsRects);
 
 	ID3D12DescriptorHeap* descriptorHeaps[] = { m_descriptorHeap.Get() };
-	m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-	m_commandList->SetGraphicsRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+	commandList->SetGraphicsRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
 		D3D12_RESOURCE_STATE_PRESENT,
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	m_commandList->ResourceBarrier(1, &barrier);
+	commandList->ResourceBarrier(1, &barrier);
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
 		m_rtvDescriptorSize);
 	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
 		m_dsvDescriptorSize);
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
 	const float kClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	m_commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
+	commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	const float kClearDepth = 1.0f;
-	m_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, kClearDepth, 0, 0, nullptr);
-	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-	m_commandList->IASetIndexBuffer(&m_indexBufferView);
+	commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, kClearDepth, 0, 0, nullptr);
+	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+	commandList->IASetIndexBuffer(&m_indexBufferView);
 
-	m_commandList->DrawIndexedInstanced(m_indexBufferView.SizeInBytes / sizeof(uint32_t), 1, 0, 0, 0);
+	commandList->DrawIndexedInstanced(m_indexBufferView.SizeInBytes / sizeof(uint32_t), 1, 0, 0, 0);
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	m_commandList->ResourceBarrier(1, &barrier);
+	commandList->ResourceBarrier(1, &barrier);
 
-	DxVerify(m_commandList->Close());
+	DxVerify(commandList->Close());
 }
 
 
-//TODO not use this every frame
-void BaseRenderer::WaitForPreviousFrame()
+void BaseRenderer::WaitForGpu()
 {
-	// Signal and increment the fence value.
-	const UINT64 fence = m_fenceValue;
-	DxVerify(m_commandQueue->Signal(m_fence.Get(), fence));
-	m_fenceValue++;
+	DxVerify(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
 
-	// Wait until the previous frame is finished.
-	if (m_fence->GetCompletedValue() < fence)
+	DxVerify(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+	WaitForSingleObject(m_fenceEvent, INFINITE);
+
+	m_fenceValues[m_frameIndex]++;
+}
+
+
+void BaseRenderer::UpdateToNextFrame()
+{
+	const uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
+	DxVerify(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
+
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
 	{
-		DxVerify(m_fence->SetEventOnCompletion(fence, m_fenceEvent));
+		DxVerify(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
-	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
 }

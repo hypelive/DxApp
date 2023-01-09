@@ -36,12 +36,13 @@ private:
 	ComPtr<ID3D12Resource> m_renderTargets[kSwapChainBuffersCount];
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12Resource> m_depthStencilResources[kSwapChainBuffersCount];
-	ComPtr<ID3D12CommandAllocator> m_commandAllocator;
+	ComPtr<ID3D12CommandAllocator> m_commandAllocators[kSwapChainBuffersCount];
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	uint32_t m_rtvDescriptorSize = 0;
 	uint32_t m_dsvDescriptorSize = 0;
+	uint32_t m_cbvSrvUavDescriptorSize = 0;
 
 	ComPtr<ID3D12Resource> m_vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
@@ -50,13 +51,13 @@ private:
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
 	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
-	ComPtr<ID3D12Resource> m_constantBufferUploadHeap;
+	ComPtr<ID3D12Resource> m_constantBufferUploadHeaps[kSwapChainBuffersCount];
 	//uint8_t* m_cbGPUAddress[kSwapChainBuffersCount] = { nullptr };
 
 	uint32_t m_frameIndex;
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
-	uint64_t m_fenceValue;
+	uint64_t m_fenceValues[kSwapChainBuffersCount] = { 0 };
 
 	// TODO to Scene class
 	Camera m_camera;
@@ -74,5 +75,6 @@ private:
 
 	void PopulateCommandList(D3D12_VIEWPORT viewport);
 
-	void WaitForPreviousFrame();
+	void WaitForGpu();
+	void UpdateToNextFrame();
 };
