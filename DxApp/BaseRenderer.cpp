@@ -5,11 +5,8 @@
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 
-#include <assimp/cimport.h>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 #include "DxHelpers.h"
+#include "SceneObjectConstantBuffer.h"
 #include "BaseRenderer.h"
 
 
@@ -41,8 +38,8 @@ void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 }
 
 
-BaseRenderer::BaseRenderer(HWND hwnd, uint32_t windowWidth, uint32_t windowHeight) :
-	m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f)), m_windowWidth(windowWidth), m_windowHeight(windowHeight)
+BaseRenderer::BaseRenderer(HWND hwnd, uint32_t windowWidth, uint32_t windowHeight) : m_windowWidth(windowWidth),
+	m_windowHeight(windowHeight)
 {
 	LoadPipeline(hwnd);
 	LoadAssets();
@@ -53,6 +50,10 @@ BaseRenderer::~BaseRenderer()
 {
 	WaitForGpu();
 	CloseHandle(m_fenceEvent);
+
+	if (m_cbDataCPU)
+		free(m_cbDataCPU);
+	m_scene->DestroyRendererResources();
 }
 
 
@@ -62,7 +63,7 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 
 	PopulateCommandList(viewport);
 
-	ID3D12CommandList* commandLists[] = { m_commandLists[m_frameIndex].Get() };
+	ID3D12CommandList* commandLists[] = {m_commandList.Get()};
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
 	DxVerify(m_swapChain->Present(0, 0));
@@ -71,9 +72,13 @@ void BaseRenderer::RenderScene(D3D12_VIEWPORT viewport)
 }
 
 
-Camera& BaseRenderer::GetCamera()
+void BaseRenderer::SetScene(Scene* scene)
 {
-	return m_camera;
+	m_scene = scene;
+
+	m_scene->CreateRendererResources(m_device.Get());
+
+	CreateRootDescriptorTableResources();
 }
 
 
@@ -172,8 +177,8 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
 		{
 			DxVerify(m_device->CreateCommittedResource(&dsHeapProperties, D3D12_HEAP_FLAG_NONE,
-				&dsResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE,
-				&dsClearValue, IID_PPV_ARGS(&m_depthStencilResources[n])));
+			                                           &dsResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			                                           &dsClearValue, IID_PPV_ARGS(&m_depthStencilResources[n])));
 
 			m_device->CreateDepthStencilView(m_depthStencilResources[n].Get(), nullptr, dsvHandle);
 			dsvHandle.Offset(1, m_dsvDescriptorSize);
@@ -182,7 +187,8 @@ void BaseRenderer::LoadPipeline(HWND hwnd)
 
 	for (uint32_t i = 0; i < kSwapChainBuffersCount; i++)
 	{
-		DxVerify(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
+		DxVerify(
+			m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
 	}
 }
 
@@ -208,15 +214,16 @@ void BaseRenderer::LoadAssets()
 		rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr,
+		                       D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 		ComPtr<ID3DBlob> signature;
 		ComPtr<ID3DBlob> error;
 
 		DxVerify(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature,
-			&error));
+		                                     &error));
 		DxVerify(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(),
-			IID_PPV_ARGS(&m_rootSignature)));
+		                                       IID_PPV_ARGS(&m_rootSignature)));
 	}
 
 	// Pipeline state object
@@ -231,10 +238,12 @@ void BaseRenderer::LoadAssets()
 		uint32_t compileFlags = 0;
 #endif
 
-		DxVerify(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0",
-			compileFlags, 0, &vertexShader, nullptr));
-		DxVerify(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0",
-			compileFlags, 0, &pixelShader, nullptr));
+		DxVerify(D3DCompileFromFile(L"Shaders/Example_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main",
+		                            "vs_5_0",
+		                            compileFlags, 0, &vertexShader, nullptr));
+		DxVerify(D3DCompileFromFile(L"Shaders/Example_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main",
+		                            "ps_5_0",
+		                            compileFlags, 0, &pixelShader, nullptr));
 
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
 			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -245,10 +254,10 @@ void BaseRenderer::LoadAssets()
 		};
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+		psoDesc.InputLayout = {inputElementDescs, _countof(inputElementDescs)};
 		psoDesc.pRootSignature = m_rootSignature.Get();
-		psoDesc.VS = { reinterpret_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize() };
-		psoDesc.PS = { reinterpret_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize() };
+		psoDesc.VS = {static_cast<uint8_t*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize()};
+		psoDesc.PS = {static_cast<uint8_t*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize()};
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.RasterizerState.FrontCounterClockwise = true;
 		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
@@ -271,14 +280,9 @@ void BaseRenderer::LoadAssets()
 	// TODO Device4::CreateCommandList1 - creates closed list
 	{
 		DxVerify(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(),
-			m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+		                                     m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 		DxVerify(m_commandList->Close());
 	}
-
-	// Vertex and Index buffers initialization
-	LoadScene();
-
-	CreateRootDescriptorTableResources();
 
 	// Synchronization
 	{
@@ -297,84 +301,10 @@ void BaseRenderer::LoadAssets()
 }
 
 
-void BaseRenderer::LoadScene()
-{
-	auto* scene = aiImportFile("Scenes/Example.glb", aiProcessPreset_TargetRealtime_MaxQuality);
-
-	// TODO expand to several meshes
-	assert(scene->mNumMeshes > 0);
-
-	struct Vertex
-	{
-		XMFLOAT3 position;
-		XMFLOAT4 color;
-	};
-
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
-
-	const auto* mesh = scene->mMeshes[0];
-	vertices.resize(mesh->mNumVertices);
-	for (uint32_t n = 0; n < mesh->mNumVertices; n++)
-	{
-		const auto& position = mesh->mVertices[n];
-		const auto& color = mesh->mColors[0][n];
-
-		vertices[n].position = XMFLOAT3(position.x, position.y, position.z);
-		vertices[n].color = XMFLOAT4(color.r, color.g, color.b, color.a);
-	}
-
-	// Support only triangles
-	// TODO Add support for other primitive types
-	indices.reserve(mesh->mNumFaces * 3);
-	for (uint32_t primitiveIndex = 0; primitiveIndex < mesh->mNumFaces; primitiveIndex++)
-	{
-		const auto& primitive = mesh->mFaces[primitiveIndex];
-
-		for (uint32_t n = 0; n < primitive.mNumIndices; n++)
-		{
-			indices.push_back(primitive.mIndices[n]);
-		}
-	}
-
-	uint32_t vertexBufferSize = static_cast<uint32_t>(vertices.size()) * sizeof(Vertex);
-	uint32_t indexBufferSize = static_cast<uint32_t>(indices.size()) * sizeof(uint32_t);
-
-	// TODO DefaultHeap to not upload this buffers every frame?
-	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
-	auto vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-	auto indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
-	DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_vertexBuffer)));
-	DxVerify(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &indexBufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
-
-	uint8_t* dataPointer;
-	const auto readRange = CD3DX12_RANGE(0, 0);
-
-	DxVerify(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
-	memcpy(dataPointer, vertices.data(), vertexBufferSize);
-	m_vertexBuffer->Unmap(0, nullptr);
-
-	m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-	m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-
-	DxVerify(m_indexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
-	memcpy(dataPointer, indices.data(), indexBufferSize);
-	m_indexBuffer->Unmap(0, nullptr);
-
-	m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
-	m_indexBufferView.SizeInBytes = indexBufferSize;
-	m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
-}
-
-
 void BaseRenderer::CreateRootDescriptorTableResources()
 {
-
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = kSwapChainBuffersCount;
+	heapDesc.NumDescriptors = kSwapChainBuffersCount * m_scene->GetSceneObjectsCount();
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	DxVerify(m_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
@@ -385,51 +315,68 @@ void BaseRenderer::CreateRootDescriptorTableResources()
 	for (uint32_t i = 0; i < kSwapChainBuffersCount; i++)
 	{
 		const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64);
+		const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64); // alignment
 		DxVerify(m_device->CreateCommittedResource(
 			&heapProperties,
 			D3D12_HEAP_FLAG_NONE,
-			&resourceDesc, // alignment
+			&resourceDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(&m_constantBufferUploadHeaps[i])));
 		m_constantBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
 
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = m_constantBufferUploadHeaps[i]->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = (sizeof(SceneObjectConstantBuffer) + 255) & ~255; // 256 byte alignment
-		m_device->CreateConstantBufferView(&cbvDesc, descriptorHandle);
+		auto cbAddress = m_constantBufferUploadHeaps[i]->GetGPUVirtualAddress();
+		for (uint32_t j = 0; j < m_scene->GetSceneObjectsCount(); j++)
+		{
+			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+			cbvDesc.BufferLocation = cbAddress;
+			cbvDesc.SizeInBytes = SceneObjectConstantBuffer::GetAlignedSize();
+			m_device->CreateConstantBufferView(&cbvDesc, descriptorHandle);
 
-		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
+			descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
+			cbAddress += SceneObjectConstantBuffer::GetAlignedSize();
+		}
 	}
 }
 
 
 void BaseRenderer::UpdateData(float appAspect)
 {
-	SceneObjectConstantBuffer sceneObjectData;
-	XMStoreFloat4x4(&sceneObjectData.model, XMMatrixIdentity());
-	sceneObjectData.view = m_camera.GetViewMatrix();
-	sceneObjectData.projection = m_camera.GetProjectionMatrix(appAspect);
+	if (!m_cbDataCPU)
+		m_cbDataCPU = static_cast<uint8_t*>(malloc(
+			SceneObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount()));
 
-	XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
-	XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
-	XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
+	auto currentCbPointer = m_cbDataCPU;
+	for (uint32_t i = 0; i < m_scene->GetSceneObjects().size(); i++)
+	{
+		new(currentCbPointer) SceneObjectConstantBuffer();
+		auto& sceneObjectData = *reinterpret_cast<SceneObjectConstantBuffer*>(currentCbPointer);
 
-	XMMATRIX vpMatrix = XMMatrixMultiply(viewMatrix, projectionMatrix);
+		sceneObjectData.model = m_scene->GetSceneObjects()[i].GetTransformMatrix();
+		sceneObjectData.view = m_scene->GetCamera().GetViewMatrix();
+		sceneObjectData.projection = m_scene->GetCamera().GetProjectionMatrix(appAspect);
 
-	XMStoreFloat4x4(&sceneObjectData.vp, vpMatrix);
-	XMStoreFloat4x4(&sceneObjectData.mvp, XMMatrixMultiply(modelMatrix, vpMatrix));
+		XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
+		XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
+		XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
 
-	uint8_t* constantBufferData;
+		XMMATRIX vpMatrix = XMMatrixMultiply(viewMatrix, projectionMatrix);
+
+		XMStoreFloat4x4(&sceneObjectData.vp, vpMatrix);
+		XMStoreFloat4x4(&sceneObjectData.mvp, XMMatrixMultiply(modelMatrix, vpMatrix));
+
+		currentCbPointer += SceneObjectConstantBuffer::GetAlignedSize();
+	}
+
+	uint8_t* cbDataGPU;
 	const auto readRange = CD3DX12_RANGE(0, 0);
-	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&constantBufferData)));
-	memcpy(constantBufferData, &sceneObjectData, sizeof(sceneObjectData));
+	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&cbDataGPU)));
+	memcpy(cbDataGPU, m_cbDataCPU, SceneObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount());
 	m_constantBufferUploadHeaps[m_frameIndex]->Unmap(0, nullptr);
 }
 
 
-void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
+void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 {
 	auto* commandList = m_commandList.Get();
 
@@ -437,40 +384,49 @@ void BaseRenderer::PopulateCommandList(D3D12_VIEWPORT viewport)
 	DxVerify(commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 
 	commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-	D3D12_VIEWPORT viewports[] = { viewport };
+	D3D12_VIEWPORT viewports[] = {viewport};
 	commandList->RSSetViewports(1, viewports);
 	D3D12_RECT scissorsRects[] = {
 		{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
 	};
 	commandList->RSSetScissorRects(1, scissorsRects);
 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { m_descriptorHeap.Get() };
+	ID3D12DescriptorHeap* descriptorHeaps[] = {m_descriptorHeap.Get()};
 	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-	commandList->SetGraphicsRootDescriptorTable(0, m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	auto cbDescriptorTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	cbDescriptorTable.Offset(m_frameIndex * m_scene->GetSceneObjectsCount(), m_cbvSrvUavDescriptorSize);
 
 	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-		D3D12_RESOURCE_STATE_PRESENT,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
+	                                                    D3D12_RESOURCE_STATE_PRESENT,
+	                                                    D3D12_RESOURCE_STATE_RENDER_TARGET);
 	commandList->ResourceBarrier(1, &barrier);
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
-		m_rtvDescriptorSize);
+	                                               m_rtvDescriptorSize);
 	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
-		m_dsvDescriptorSize);
+	                                               m_dsvDescriptorSize);
 	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-	const float kClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	const float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 	commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 	const float kClearDepth = 1.0f;
 	commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, kClearDepth, 0, 0, nullptr);
-	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
-	commandList->IASetIndexBuffer(&m_indexBufferView);
 
-	commandList->DrawIndexedInstanced(m_indexBufferView.SizeInBytes / sizeof(uint32_t), 1, 0, 0, 0);
+	for (auto& sceneObject : m_scene->GetSceneObjects())
+	{
+		commandList->SetGraphicsRootDescriptorTable(0, cbDescriptorTable);
+		cbDescriptorTable.Offset(1, m_cbvSrvUavDescriptorSize);
+
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		commandList->IASetVertexBuffers(0, 1, &sceneObject.GetVertexBufferView());
+		commandList->IASetIndexBuffer(&sceneObject.GetIndexBufferView());
+
+		commandList->DrawIndexedInstanced(sceneObject.GetIndicesCount(), 1, 0, 0, 0);
+	}
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	                                               D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	commandList->ResourceBarrier(1, &barrier);
 
 	DxVerify(commandList->Close());

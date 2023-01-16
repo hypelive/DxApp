@@ -9,6 +9,7 @@
 #include "framework.h"
 #include "DxApp.h"
 #include "BaseRenderer.h"
+#include "Scene.h"
 
 
 #define MAX_LOADSTRING 100
@@ -29,6 +30,8 @@ struct AppState
 	float mouseYPosDelta;
 };
 
+
+static const char* kScenePath = "Scenes/ExampleBoxes.glb";
 
 // FULL HD
 static constexpr uint32_t kWindowWidth = 1920;
@@ -100,7 +103,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DXAPP));
 
-	auto baseRenderer = BaseRenderer(hwnd, kWindowWidth, kWindowHeight);
+	auto* scene = new Scene(kScenePath);
+	auto* baseRenderer = new BaseRenderer(hwnd, kWindowWidth, kWindowHeight);
+	baseRenderer->SetScene(scene);
 
 	auto lastFrameTime = std::chrono::high_resolution_clock::now();
 
@@ -124,7 +129,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		{
 			const float cameraOffset = kCameraSpeed * GDeltaTime;
 
-			Camera& camera = baseRenderer.GetCamera();
+			Camera& camera = scene->GetCamera();
 			XMFLOAT3 cameraTranslation;
 			XMStoreFloat3(&cameraTranslation, XMVectorZero());
 			if (pState->upPressed)
@@ -156,12 +161,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			1.0f
 		};
 
-		baseRenderer.RenderScene(viewport);
+		baseRenderer->RenderScene(viewport);
 
 		auto frameTime = std::chrono::high_resolution_clock::now();
 		OutputDebugString(std::format(L"frameTime: {}\n", std::chrono::duration<float, std::chrono::milliseconds::period>(frameTime - lastFrameTime).count()).c_str());
 		lastFrameTime = frameTime;
 	}
+
+	delete baseRenderer;
+	delete scene;
 
 	return static_cast<int>(msg.wParam);
 }

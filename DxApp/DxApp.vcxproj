@@ -141,6 +141,8 @@
     <ClInclude Include="DxHelpers.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="Scene.h" />
+    <ClInclude Include="SceneObject.h" />
     <ClInclude Include="SceneObjectConstantBuffer.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
@@ -148,6 +150,8 @@
     <ClCompile Include="BaseRenderer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DxApp.cpp" />
+    <ClCompile Include="Scene.cpp" />
+    <ClCompile Include="SceneObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="DxApp.rc" />
