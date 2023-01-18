@@ -39,10 +39,16 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 }
 
 
-void Scene::CreateRendererResources(ID3D12Device* device)
+void Scene::CreateRendererResources(ID3D12Device* device, ID3D12GraphicsCommandList* commandList)
 {
 	for (auto& sceneObject : m_sceneObjects)
-		sceneObject.CreateRenderResources(device);
+		sceneObject.CreateRenderResources(device, commandList);
+}
+
+void Scene::DestroyUploadResources()
+{
+	for (auto& sceneObject : m_sceneObjects)
+		sceneObject.DestroyUploadResources();
 }
 
 

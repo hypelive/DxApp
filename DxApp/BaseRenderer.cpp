@@ -76,7 +76,20 @@ void BaseRenderer::SetScene(Scene* scene)
 {
 	m_scene = scene;
 
-	m_scene->CreateRendererResources(m_device.Get());
+	// Loading mesh data to the GPU
+	DxVerify(m_commandAllocators[m_frameIndex]->Reset());
+	DxVerify(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr));
+
+	m_scene->CreateRendererResources(m_device.Get(), m_commandList.Get());
+
+	DxVerify(m_commandList->Close());
+
+	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
+	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+	WaitForGpu();
+
+	// Free upload buffers memory
+	m_scene->DestroyUploadResources();
 
 	CreateRootDescriptorTableResources();
 }

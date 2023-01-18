@@ -19,7 +19,8 @@ public:
 	SceneObject() = delete;
 	explicit SceneObject(aiMesh* mesh, aiMatrix4x4 transformMatrix);
 
-	void CreateRenderResources(ID3D12Device* device);
+	void CreateRenderResources(ID3D12Device* device, ID3D12GraphicsCommandList* commandList);
+	void DestroyUploadResources();
 	void DestroyRendererResources();
 
 	uint32_t GetIndicesCount() const { return static_cast<uint32_t>(m_indices.size()); }
@@ -40,10 +41,11 @@ private:
 	std::vector<uint32_t> m_indices;
 
 	// DirectX resources:
+	ComPtr<ID3D12Resource> m_vertexBufferUpload;
+	ComPtr<ID3D12Resource> m_indexBufferUpload;
 	ComPtr<ID3D12Resource> m_vertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-
 	ComPtr<ID3D12Resource> m_indexBuffer;
+	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
 	DirectX::XMFLOAT4X4 m_transformMatrix;

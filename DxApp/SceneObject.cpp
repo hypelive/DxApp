@@ -36,46 +36,81 @@ SceneObject::SceneObject(aiMesh* mesh, aiMatrix4x4 transformMatrix)
 }
 
 
-void SceneObject::CreateRenderResources(ID3D12Device* device)
+void SceneObject::CreateRenderResources(ID3D12Device* device, ID3D12GraphicsCommandList* commandList)
 {
 	const uint32_t vertexBufferSize = static_cast<uint32_t>(m_vertices.size()) * sizeof(Vertex);
 	const uint32_t indexBufferSize = static_cast<uint32_t>(m_indices.size()) * sizeof(uint32_t);
 
-	// TODO DefaultHeap to not upload this buffers every frame?
-	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
 	const auto vertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
 	const auto indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize);
-	DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc,
-	                                         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-	                                         IID_PPV_ARGS(&m_vertexBuffer)));
-	DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &indexBufferDesc,
-	                                         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
 
-	uint8_t* dataPointer;
-	const auto readRange = CD3DX12_RANGE(0, 0);
+	// Create and fill upload heaps
+	{
+		const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+			IID_PPV_ARGS(&m_vertexBufferUpload)));
+		DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &indexBufferDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_indexBufferUpload)));
 
-	DxVerify(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
-	memcpy(dataPointer, m_vertices.data(), vertexBufferSize);
-	m_vertexBuffer->Unmap(0, nullptr);
+		uint8_t* dataPointer;
+		const auto readRange = CD3DX12_RANGE(0, 0);
 
-	m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-	m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	m_vertexBufferView.StrideInBytes = sizeof(Vertex);
+		DxVerify(m_vertexBufferUpload->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
+		memcpy(dataPointer, m_vertices.data(), vertexBufferSize);
+		m_vertexBufferUpload->Unmap(0, nullptr);
 
-	DxVerify(m_indexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
-	memcpy(dataPointer, m_indices.data(), indexBufferSize);
-	m_indexBuffer->Unmap(0, nullptr);
+		DxVerify(m_indexBufferUpload->Map(0, &readRange, reinterpret_cast<void**>(&dataPointer)));
+		memcpy(dataPointer, m_indices.data(), indexBufferSize);
+		m_indexBufferUpload->Unmap(0, nullptr);
+	}
 
-	m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
-	m_indexBufferView.SizeInBytes = indexBufferSize;
-	m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	// Create Default heap buffers and write copy commands to commandList
+	{
+		const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+			IID_PPV_ARGS(&m_vertexBuffer)));
+		DxVerify(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &indexBufferDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+			IID_PPV_ARGS(&m_indexBuffer)));
+
+		commandList->CopyResource(m_vertexBuffer.Get(), m_vertexBufferUpload.Get());
+		commandList->CopyResource(m_indexBuffer.Get(), m_indexBufferUpload.Get());
+
+		const CD3DX12_RESOURCE_BARRIER barriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+												 D3D12_RESOURCE_STATE_GENERIC_READ),
+			CD3DX12_RESOURCE_BARRIER::Transition(m_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+												 D3D12_RESOURCE_STATE_GENERIC_READ)
+		};
+		commandList->ResourceBarrier(2, barriers);
+	}
+
+	// Create vertex and index buffer descriptors
+	{
+		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+		m_vertexBufferView.SizeInBytes = vertexBufferSize;
+		m_vertexBufferView.StrideInBytes = sizeof(Vertex);
+
+		m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
+		m_indexBufferView.SizeInBytes = indexBufferSize;
+		m_indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	}
+}
+
+
+void SceneObject::DestroyUploadResources()
+{
+	m_vertexBufferUpload.Reset();
+	m_indexBufferUpload.Reset();
 }
 
 
 void SceneObject::DestroyRendererResources()
 {
 	m_vertexBufferView = {};
-	m_vertexBuffer.Reset();
+	m_vertexBufferUpload.Reset();
 	m_indexBufferView = {};
-	m_indexBuffer.Reset();
+	m_indexBufferUpload.Reset();
 }

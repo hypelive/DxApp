@@ -12,7 +12,8 @@ public:
 	Scene() = delete;
 	explicit Scene(const char* path);
 
-	void CreateRendererResources(ID3D12Device* device);
+	void CreateRendererResources(ID3D12Device* device, ID3D12GraphicsCommandList* commandList);
+	void DestroyUploadResources();
 	void DestroyRendererResources();
 
 	Camera& GetCamera() { return m_camera; }
