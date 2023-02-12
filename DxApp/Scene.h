@@ -4,6 +4,7 @@
 
 #include "SceneObject.h"
 #include "Camera.h"
+#include "LightSources.h"
 
 
 class Scene
@@ -23,5 +24,5 @@ public:
 private:
 	std::vector<SceneObject> m_sceneObjects;
 	Camera m_camera;
-	// LightingData m_lightingData;
+	LightSources m_lightSources;
 };

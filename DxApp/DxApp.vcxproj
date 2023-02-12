@@ -135,6 +135,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="LightSources.h" />
+    <ClInclude Include="MathHelpers.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DxApp.h" />
@@ -147,6 +149,8 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="LightSources.cpp" />
+    <ClCompile Include="MathHelpers.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DxApp.cpp" />

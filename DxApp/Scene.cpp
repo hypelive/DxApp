@@ -10,31 +10,65 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 	auto* importedScene = aiImportFile(path, aiProcessPreset_TargetRealtime_MaxQuality);
 	assert(importedScene);
 
-	struct StackEntry
+	if (importedScene->HasMeshes())
 	{
-		aiNode* node;
-		aiMatrix4x4 parentTransform;
-	};
-
-	std::vector<StackEntry> stack;
-	stack.push_back({importedScene->mRootNode, aiMatrix4x4()});
-
-	while (!stack.empty())
-	{
-		auto entry = stack.back();
-		stack.pop_back();
-
-		auto transform = entry.node->mTransformation * entry.parentTransform;
-
-		for (uint32_t i = 0; i < entry.node->mNumMeshes; i++)
+		struct StackEntry
 		{
-			auto* mesh = importedScene->mMeshes[entry.node->mMeshes[i]];
+			aiNode* node;
+			aiMatrix4x4 parentTransform;
+		};
 
-			m_sceneObjects.push_back(SceneObject(mesh, transform));
+		std::vector<StackEntry> stack;
+		stack.push_back({importedScene->mRootNode, aiMatrix4x4()});
+
+		while (!stack.empty())
+		{
+			auto entry = stack.back();
+			stack.pop_back();
+
+			auto transform = entry.node->mTransformation * entry.parentTransform;
+
+			for (uint32_t i = 0; i < entry.node->mNumMeshes; i++)
+			{
+				auto* mesh = importedScene->mMeshes[entry.node->mMeshes[i]];
+
+				m_sceneObjects.push_back(SceneObject(mesh, transform));
+			}
+
+			for (uint32_t i = 0; i < entry.node->mNumChildren; i++)
+				stack.push_back({entry.node->mChildren[i], transform});
 		}
+	}
 
-		for (uint32_t i = 0; i < entry.node->mNumChildren; i++)
-			stack.push_back({entry.node->mChildren[i], transform});
+	if (importedScene->HasLights())
+	{
+		for (uint32_t i = 0; i < importedScene->mNumLights; i++)
+		{
+			auto* light = importedScene->mLights[i];
+
+			switch (light->mType)
+			{
+			case aiLightSource_AMBIENT:
+				m_lightSources.SetAmbient(AmbientLightSource(
+					XMFLOAT4(light->mColorAmbient.r, light->mColorAmbient.g, light->mColorAmbient.b, 1.0f)));
+				break;
+			case aiLightSource_DIRECTIONAL:
+				m_lightSources.AddDirectional(DirectionalLightSource(
+					XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
+					XMFLOAT4(light->mDirection.x, light->mDirection.y, light->mDirection.z, 1.0f)));
+				break;
+			case aiLightSource_POINT:
+				m_lightSources.AddPoint(PointLightSource(
+					XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
+					XMFLOAT4(light->mPosition.x, light->mPosition.y, light->mPosition.z, 1.0f)));
+				break;
+			case aiLightSource_AREA:
+				// TODO
+				break;
+			default:
+				break;
+			}
+		}
 	}
 }
 
