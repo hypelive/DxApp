@@ -1,6 +1,6 @@
 
-#ifndef EXAMPLE_INCLUDES
-#define EXAMPLE_INCLUDES
+#ifndef GEOMETRY_PASS_INCLUDES
+#define GEOMETRY_PASS_INCLUDES
 
 struct PixelAttributes
 {

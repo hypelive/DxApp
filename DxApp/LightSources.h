@@ -77,7 +77,8 @@ public:
 private:
 	AmbientLightSource m_ambient;
 	DirectionalLightSource m_directionalSources[kMaxDirectionalLightSourcesCount];
-	uint32_t m_directionalLightSourcesCount = 0;
 	PointLightSource m_pointLightSources[kMaxPointLightSourcesCount];
+
+	uint32_t m_directionalLightSourcesCount = 0;
 	uint32_t m_pointLightSourcesCount = 0;
 };
