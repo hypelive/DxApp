@@ -8,7 +8,7 @@
 
 #include "framework.h"
 #include "DxApp.h"
-#include "BaseRenderer.h"
+#include "Renderer.h"
 #include "Scene.h"
 
 
@@ -104,7 +104,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DXAPP));
 
 	auto* scene = new Scene(kScenePath);
-	auto* baseRenderer = new BaseRenderer(hwnd, kWindowWidth, kWindowHeight);
+	auto* baseRenderer = new Renderer(hwnd, kWindowWidth, kWindowHeight);
 	baseRenderer->SetScene(scene);
 
 	auto lastFrameTime = std::chrono::high_resolution_clock::now();

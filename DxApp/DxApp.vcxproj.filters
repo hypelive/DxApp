@@ -27,7 +27,7 @@
     <ClInclude Include="DxApp.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="BaseRenderer.h">
+    <ClInclude Include="Renderer.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="DxHelpers.h">
@@ -50,7 +50,7 @@
     <ClCompile Include="DxApp.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="BaseRenderer.cpp">
+    <ClCompile Include="Renderer.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="Camera.cpp">
