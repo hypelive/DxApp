@@ -41,8 +41,15 @@ cbuffer ConstantBuffer : register(b0)
 }
 
 
+Texture2D<float4> Albedo : register(t0)
+Texture2D<float4> Position : register(t1)
+Texture2D<float4> Normal : register(t2)
+
+Sampler PointClampSampler : register(s0)
+
+
 // Need point clamp static sampler
 void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 {
-	outputColor = float4(1.0f, 0.0f, 1.0f, 1.0f);
+	outputColor = Albedo.Sample(PointClampSampler, attributes.uv);
 }

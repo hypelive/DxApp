@@ -20,6 +20,7 @@ public:
 	Camera& GetCamera() { return m_camera; }
 	std::vector<SceneObject>& GetSceneObjects() { return m_sceneObjects; }
 	uint32_t GetSceneObjectsCount() const { return static_cast<uint32_t>(m_sceneObjects.size()); }
+	LightSources& GetLightSources() { return m_lightSources; }
 
 private:
 	std::vector<SceneObject> m_sceneObjects;

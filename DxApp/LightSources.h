@@ -68,6 +68,8 @@ public:
 	static constexpr uint32_t kMaxDirectionalLightSourcesCount = 4;
 	static constexpr uint32_t kMaxPointLightSourcesCount = 8;
 
+	static uint32_t GetAlignedSize() { return (sizeof(LightSources) + 255) & ~255; }
+
 	LightSources() = default;
 
 	void SetAmbient(AmbientLightSource lightSource);

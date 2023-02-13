@@ -25,6 +25,9 @@ private:
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
 
 	static constexpr DXGI_FORMAT kDsFormat = DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+	static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	static constexpr uint8_t kGeometryStencilRef = 1;
 
 	ComPtr<ID3D12Device> m_device;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
@@ -34,9 +37,14 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12Resource> m_depthStencilResources[kSwapChainBuffersCount];
 	ComPtr<ID3D12CommandAllocator> m_commandAllocators[kSwapChainBuffersCount];
-	ComPtr<ID3D12RootSignature> m_rootSignature;
-	ComPtr<ID3D12PipelineState> m_pipelineState;
+
+	ComPtr<ID3D12RootSignature> m_geometryPassRootSignature;
+	ComPtr<ID3D12PipelineState> m_geometryPassPipelineStateObject;
+	ComPtr<ID3D12RootSignature> m_lightingPassRootSignature;
+	ComPtr<ID3D12PipelineState> m_lightingPassPipelineStateObject;
+
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
+
 	uint32_t m_rtvDescriptorSize = 0;
 	uint32_t m_dsvDescriptorSize = 0;
 	uint32_t m_cbvSrvUavDescriptorSize = 0;
@@ -80,8 +88,12 @@ private:
 	void CreateFrameResources();
 
 	void LoadAssets();
-	void CreateRootSignature();
-	void CreatePipelineStateObject();
+	void CreateRootSignatures();
+	void CreateGeometryPassRootSignature();
+	void CreateLightingPassRootSignature();
+	void CreatePipelineStateObjects();
+	void CreateGeometryPassPso();
+	void CreateLightingPassPso();
 	void CreateCommandList();
 	void CreateSynchronizationResources();
 
