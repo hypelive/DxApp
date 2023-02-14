@@ -12,5 +12,5 @@ void ps_main(in PixelAttributes attributes, out OutputAttributes output)
 {
 	output.albedo = attributes.color;
 	output.position = attributes.worldPosition;
-	output.normal = float4(0.0, 1.0, 0.0, 1.0);
+	output.normal = attributes.normal;
 }

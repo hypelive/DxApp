@@ -3,8 +3,9 @@
 
 struct VertexAttributes
 {
-    float3 position : POSITION;
+    float4 position : POSITION;
     float4 color : COLOR;
+    float4 normal : NORMAL;
 };
 
 struct SceneObjectData
@@ -25,7 +26,8 @@ cbuffer ConstantBuffer : register(b0)
 
 void vs_main(in VertexAttributes input, out PixelAttributes output)
 {
-    output.worldPosition = mul(sceneData.model, float4(input.position, 1.0f));
+    output.worldPosition = mul(sceneData.model, input.position);
     output.deviceCoordinatesPosition = mul(sceneData.vp, output.worldPosition);
     output.color = input.color;
+    output.normal = mul(sceneData.model, input.normal); // normal.w = 0 here, so translation ignored
 }

@@ -31,7 +31,7 @@ struct AppState
 };
 
 
-static const char* kScenePath = "Scenes/ExampleBoxes.glb";
+static const char* kScenePath = "Scenes/LitBoxes.glb";
 
 // FULL HD
 static constexpr uint32_t kWindowWidth = 1920;

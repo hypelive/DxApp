@@ -70,6 +70,15 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 			}
 		}
 	}
+	else
+	{
+		// Create our own light sources
+		m_lightSources.SetAmbient(AmbientLightSource(
+			XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f)));
+		m_lightSources.AddDirectional(DirectionalLightSource(
+			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+			XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)));
+	}
 }
 
 

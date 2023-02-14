@@ -33,8 +33,9 @@ public:
 private:
 	struct Vertex
 	{
-		DirectX::XMFLOAT3 position;
+		DirectX::XMFLOAT4 position;
 		DirectX::XMFLOAT4 color;
+		DirectX::XMFLOAT4 normal;
 	};
 
 	std::vector<Vertex> m_vertices;

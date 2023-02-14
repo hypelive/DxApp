@@ -15,6 +15,18 @@ using namespace DirectX;
 using namespace Microsoft::WRL;
 
 
+namespace
+{
+	struct LightingPassCbvData
+	{
+		XMFLOAT4 cameraPosition;
+		LightSources lightSources;
+
+		static uint32_t GetAlignedSize() { return (sizeof(LightingPassCbvData) + 255) & ~255; }
+	};
+}
+
+
 void GetHardwareAdapter(IDXGIFactory* factory, IDXGIAdapter** adapter)
 {
 	*adapter = nullptr;
@@ -336,7 +348,7 @@ void Renderer::CreateLightingPassRootSignature()
 	descriptorRanges[1].RegisterSpace = 0; // ?
 
 	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable = {};
-	descriptorTable.NumDescriptorRanges = 1;
+	descriptorTable.NumDescriptorRanges = 2;
 	descriptorTable.pDescriptorRanges = descriptorRanges;
 
 	D3D12_ROOT_PARAMETER rootParameters[1] = {};
@@ -345,7 +357,8 @@ void Renderer::CreateLightingPassRootSignature()
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	CD3DX12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
-	staticSamplers[0].Init(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
+	staticSamplers[0].Init(0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+	                       D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 	rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 1, staticSamplers,
@@ -390,9 +403,13 @@ void Renderer::CreateGeometryPassPso()
 	                            compileFlags, 0, &pixelShader, nullptr));
 
 	D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{
 			"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+		},
+		{
+			"NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		}
 	};
@@ -536,7 +553,8 @@ void Renderer::CreateRootDescriptorTableResources()
 	{
 		const auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 		assert(
-			1024 * 64 >= m_scene->GetSceneObjectsCount() * SceneObjectConstantBuffer::GetAlignedSize() + LightSources::
+			1024 * 64 >= m_scene->GetSceneObjectsCount() * SceneObjectConstantBuffer::GetAlignedSize() +
+			LightingPassCbvData::
 			GetAlignedSize());
 		const auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(1024 * 64); // alignment
 		DxVerify(m_device->CreateCommittedResource(
@@ -588,7 +606,7 @@ void Renderer::UpdateData(float appAspect)
 	if (!m_cbDataCPU)
 		m_cbDataCPU = static_cast<uint8_t*>(malloc(
 			SceneObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount() +
-			LightSources::GetAlignedSize()));
+			LightingPassCbvData::GetAlignedSize()));
 
 	auto currentCbPointer = m_cbDataCPU;
 	// SceneObjectData
@@ -613,12 +631,18 @@ void Renderer::UpdateData(float appAspect)
 		currentCbPointer += SceneObjectConstantBuffer::GetAlignedSize();
 	}
 
-	// LightSources
+	// LightingPassCbvData
 	{
-		new(currentCbPointer) LightSources();
-		auto& lightSources = *reinterpret_cast<LightSources*>(currentCbPointer);
+		new(currentCbPointer) LightingPassCbvData();
+		auto& lightingPassData = *reinterpret_cast<LightingPassCbvData*>(currentCbPointer);
 
-		lightSources = m_scene->GetLightSources();
+		const auto cameraPositionVector3 = m_scene->GetCamera().GetPosition();
+		lightingPassData.cameraPosition = XMFLOAT4(cameraPositionVector3.x, cameraPositionVector3.y,
+		                                           cameraPositionVector3.z, 1.0f);
+
+		lightingPassData.lightSources = m_scene->GetLightSources();
+
+		currentCbPointer += LightingPassCbvData::GetAlignedSize();
 	}
 
 	uint8_t* cbDataGPU;
@@ -626,7 +650,7 @@ void Renderer::UpdateData(float appAspect)
 	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&cbDataGPU)));
 	memcpy(cbDataGPU, m_cbDataCPU,
 	       SceneObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount() +
-	       LightSources::GetAlignedSize());
+	       LightingPassCbvData::GetAlignedSize());
 	m_constantBufferUploadHeaps[m_frameIndex]->Unmap(0, nullptr);
 }
 
@@ -738,8 +762,9 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 		commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 		auto cbDescriptorTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		cbDescriptorTable.Offset(kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex,
-		                         m_cbvSrvUavDescriptorSize); // Lighting Data lays after SceneObjects Data
+		cbDescriptorTable.Offset(
+			kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex * (1 + GBuffer::kRtCount),
+			m_cbvSrvUavDescriptorSize);
 		commandList->SetGraphicsRootDescriptorTable(0, cbDescriptorTable);
 
 		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_swapChainRenderTargets[m_frameIndex].Get(),

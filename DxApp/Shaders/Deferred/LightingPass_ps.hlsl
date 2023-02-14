@@ -24,7 +24,7 @@ struct PointLightSource : LightSource
 static const uint kMaxDirectionalLightSourcesCount = 4;
 static const uint kMaxPointLightSourcesCount = 8;
 
-struct LightSources
+struct LightSourcesStruct
 {
 	AmbientLightSource ambient;
 	DirectionalLightSource directionalSources[kMaxDirectionalLightSourcesCount];
@@ -37,19 +37,25 @@ struct LightSources
 
 cbuffer ConstantBuffer : register(b0)
 {
-	LightSources lightSources;
-}
+	float4 CameraPosition;
+	LightSourcesStruct LightSources;
+};
 
 
-Texture2D<float4> Albedo : register(t0)
-Texture2D<float4> Position : register(t1)
-Texture2D<float4> Normal : register(t2)
+Texture2D<float4> Albedo : register(t0);
+Texture2D<float4> Position : register(t1);
+Texture2D<float4> Normal : register(t2);
 
-SamplerState PointClampSampler : register(s0)
+SamplerState PointClampSampler : register(s0);
 
 
-// Need point clamp static sampler
 void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 {
-	outputColor = Albedo.Sample(PointClampSampler, attributes.uv);
+	float4 albedo = Albedo.Sample(PointClampSampler, attributes.uv);
+	float4 position = Position.Sample(PointClampSampler, attributes.uv);
+	float4 normal = normalize(Normal.Sample(PointClampSampler, attributes.uv));
+
+	// TODO
+
+	outputColor = albedo;
 }
