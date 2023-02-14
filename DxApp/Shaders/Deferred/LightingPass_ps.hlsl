@@ -45,7 +45,7 @@ Texture2D<float4> Albedo : register(t0)
 Texture2D<float4> Position : register(t1)
 Texture2D<float4> Normal : register(t2)
 
-Sampler PointClampSampler : register(s0)
+SamplerState PointClampSampler : register(s0)
 
 
 // Need point clamp static sampler
