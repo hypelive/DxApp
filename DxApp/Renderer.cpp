@@ -501,7 +501,7 @@ void Renderer::CreateLightingPassPso()
 	psoDesc.DepthStencilState.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
 	psoDesc.DepthStencilState.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 
-	psoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	psoDesc.DSVFormat = kDsFormat;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
@@ -714,7 +714,7 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 			commandList->ClearRenderTargetView(rtvHandles[i], kClearColor, 0, nullptr);
 		}
 		const float kClearDepth = 1.0f;
-		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, kClearDepth, 0, 0, nullptr);
+		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, kClearDepth, 0, 0, nullptr);
 
 		commandList->OMSetStencilRef(kGeometryStencilRef);
 
@@ -774,11 +774,13 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 
 		auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart(),
 		                                               m_frameIndex, m_rtvDescriptorSize);
-		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+		auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
+			m_dsvDescriptorSize);
+		commandList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 		const float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 		commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 
-		commandList->OMSetStencilRef(1);
+		commandList->OMSetStencilRef(kGeometryStencilRef);
 
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		commandList->DrawInstanced(6, 1, 0, 0);
