@@ -26,8 +26,8 @@ cbuffer ConstantBuffer : register(b0)
 
 void vs_main(in VertexAttributes input, out PixelAttributes output)
 {
-    output.worldPosition = mul(sceneData.model, input.position);
-    output.deviceCoordinatesPosition = mul(sceneData.vp, output.worldPosition);
-    output.color = input.color;
-    output.normal = mul(sceneData.model, input.normal); // normal.w = 0 here, so translation ignored
+    output.worldPosition = mul(sceneData.model, input.position).xyz;
+    output.deviceCoordinatesPosition = mul(sceneData.vp, float4(output.worldPosition, 1.0f));
+    output.color = input.color.xyz;
+    output.normal = mul(sceneData.model, input.normal).xyz; // normal.w = 0 here, so translation ignored
 }

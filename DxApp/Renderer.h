@@ -69,11 +69,9 @@ private:
 		static constexpr uint32_t kRtCount = 3;
 
 		ComPtr<ID3D12DescriptorHeap> rtvHeap;
-		ComPtr<ID3D12Resource> albedoRt;
-		ComPtr<ID3D12Resource> positionRt;
-		ComPtr<ID3D12Resource> normalRt;
-
-		// TODO pack metal, rougness, emissive
+		ComPtr<ID3D12Resource> albedoMetalnessRt;
+		ComPtr<ID3D12Resource> positionRoughnessRt;
+		ComPtr<ID3D12Resource> normalIorRt;
 	};
 
 	GBuffer m_gBuffer;

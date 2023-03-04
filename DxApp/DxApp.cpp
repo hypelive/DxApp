@@ -37,7 +37,7 @@ static const char* kScenePath = "Scenes/LitBoxes.glb";
 static constexpr uint32_t kWindowWidth = 1920;
 static constexpr uint32_t kWindowHeight = 1080;
 
-static constexpr float kCameraSpeed = 1.0f;
+static constexpr float kCameraSpeed = 3.0f;
 static constexpr float kCameraRotationSpeed = 0.01f;
 
 static float GCurrentTime;

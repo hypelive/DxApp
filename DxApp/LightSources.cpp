@@ -19,3 +19,10 @@ void LightSources::AddPoint(PointLightSource lightSource)
 	assert(m_pointLightSourcesCount < kMaxPointLightSourcesCount);
 	m_pointLightSources[m_pointLightSourcesCount++] = lightSource;
 }
+
+
+//void LightSources::AddArea(AreaLightSource lightSource)
+//{
+//	assert(m_areaLightSourcesCount < kMaxAreaLightSourcesCount);
+//	m_areaLightSources[m_areaLightSourcesCount++] = lightSource;
+//}

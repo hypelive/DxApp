@@ -136,6 +136,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="LightSources.h" />
+    <ClInclude Include="Ltcs.h" />
     <ClInclude Include="MathHelpers.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Camera.h" />

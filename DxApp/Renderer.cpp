@@ -201,14 +201,17 @@ void Renderer::CreateDescriptorHeaps()
 
 void Renderer::CreateFrameResources()
 {
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart());
-
-	// Create a RTV for each frame.
-	for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
+	// SwapChain descriptors
 	{
-		DxVerify(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_swapChainRenderTargets[n])));
-		m_device->CreateRenderTargetView(m_swapChainRenderTargets[n].Get(), nullptr, rtvHandle);
-		rtvHandle.Offset(1, m_rtvDescriptorSize);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart());
+
+		// Create a RTV for each frame.
+		for (uint32_t n = 0; n < kSwapChainBuffersCount; n++)
+		{
+			DxVerify(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_swapChainRenderTargets[n])));
+			m_device->CreateRenderTargetView(m_swapChainRenderTargets[n].Get(), nullptr, rtvHandle);
+			rtvHandle.Offset(1, m_rtvDescriptorSize);
+		}
 	}
 
 	// GBuffer targets
@@ -220,14 +223,14 @@ void Renderer::CreateFrameResources()
 		                                                 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
 		D3D12_CLEAR_VALUE clearValue = {DXGI_FORMAT_R8G8B8A8_UNORM, {0.0f, 0.0f, 0.0f, 1.0f}};
 
-		CD3DX12_HEAP_PROPERTIES gBufferHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+		const CD3DX12_HEAP_PROPERTIES gBufferHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
 		DxVerify(m_device->CreateCommittedResource(&gBufferHeapProperties,
 		                                           D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES, &resourceDesc,
 		                                           D3D12_RESOURCE_STATE_GENERIC_READ, &clearValue,
-		                                           IID_PPV_ARGS(&m_gBuffer.albedoRt)));
-		m_gBuffer.albedoRt->SetName(TEXT("GBuffer::AlbedoRt"));
-		m_device->CreateRenderTargetView(m_gBuffer.albedoRt.Get(), nullptr, rtvHandle);
+		                                           IID_PPV_ARGS(&m_gBuffer.albedoMetalnessRt)));
+		m_gBuffer.albedoMetalnessRt->SetName(TEXT("GBuffer::AlbedoMetalnessRt"));
+		m_device->CreateRenderTargetView(m_gBuffer.albedoMetalnessRt.Get(), nullptr, rtvHandle);
 		rtvHandle.Offset(1, m_rtvDescriptorSize);
 
 		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R16G16B16A16_FLOAT, m_windowWidth, m_windowHeight,
@@ -237,23 +240,23 @@ void Renderer::CreateFrameResources()
 		DxVerify(m_device->CreateCommittedResource(&gBufferHeapProperties,
 		                                           D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES, &resourceDesc,
 		                                           D3D12_RESOURCE_STATE_GENERIC_READ, &clearValue,
-		                                           IID_PPV_ARGS(&m_gBuffer.positionRt)));
-		m_gBuffer.positionRt->SetName(TEXT("GBuffer::PositionRt"));
-		m_device->CreateRenderTargetView(m_gBuffer.positionRt.Get(), nullptr, rtvHandle);
+		                                           IID_PPV_ARGS(&m_gBuffer.positionRoughnessRt)));
+		m_gBuffer.positionRoughnessRt->SetName(TEXT("GBuffer::PositionRoughnessRt"));
+		m_device->CreateRenderTargetView(m_gBuffer.positionRoughnessRt.Get(), nullptr, rtvHandle);
 		rtvHandle.Offset(1, m_rtvDescriptorSize);
 
 		DxVerify(m_device->CreateCommittedResource(&gBufferHeapProperties,
 		                                           D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES, &resourceDesc,
 		                                           D3D12_RESOURCE_STATE_GENERIC_READ, &clearValue,
-		                                           IID_PPV_ARGS(&m_gBuffer.normalRt)));
-		m_gBuffer.normalRt->SetName(TEXT("GBuffer::NormalRt"));
-		m_device->CreateRenderTargetView(m_gBuffer.normalRt.Get(), nullptr, rtvHandle);
+		                                           IID_PPV_ARGS(&m_gBuffer.normalIorRt)));
+		m_gBuffer.normalIorRt->SetName(TEXT("GBuffer::NormalIorRt"));
+		m_device->CreateRenderTargetView(m_gBuffer.normalIorRt.Get(), nullptr, rtvHandle);
 		rtvHandle.Offset(1, m_rtvDescriptorSize);
 	}
 
 	// Depth Stencil
 	{
-		CD3DX12_HEAP_PROPERTIES dsHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+		const CD3DX12_HEAP_PROPERTIES dsHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 		auto dsResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(kDsFormat, m_windowWidth, m_windowHeight);
 		dsResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 		D3D12_CLEAR_VALUE dsClearValue = {};
@@ -591,11 +594,11 @@ void Renderer::CreateRootDescriptorTableResources()
 		m_device->CreateConstantBufferView(&cbvDesc, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
 
-		m_device->CreateShaderResourceView(m_gBuffer.albedoRt.Get(), nullptr, descriptorHandle);
+		m_device->CreateShaderResourceView(m_gBuffer.albedoMetalnessRt.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
-		m_device->CreateShaderResourceView(m_gBuffer.positionRt.Get(), nullptr, descriptorHandle);
+		m_device->CreateShaderResourceView(m_gBuffer.positionRoughnessRt.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
-		m_device->CreateShaderResourceView(m_gBuffer.normalRt.Get(), nullptr, descriptorHandle);
+		m_device->CreateShaderResourceView(m_gBuffer.normalIorRt.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
 	}
 }
@@ -619,8 +622,8 @@ void Renderer::UpdateData(float appAspect)
 		sceneObjectData.view = m_scene->GetCamera().GetViewMatrix();
 		sceneObjectData.projection = m_scene->GetCamera().GetProjectionMatrix(appAspect);
 
-		XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
-		XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
+		const XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
+		const XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
 		XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
 
 		XMMATRIX vpMatrix = XMMatrixMultiply(viewMatrix, projectionMatrix);
@@ -645,10 +648,10 @@ void Renderer::UpdateData(float appAspect)
 		currentCbPointer += LightingPassCbvData::GetAlignedSize();
 	}
 
-	uint8_t* cbDataGPU;
+	uint8_t* cbDataGpu;
 	const auto readRange = CD3DX12_RANGE(0, 0);
-	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&cbDataGPU)));
-	memcpy(cbDataGPU, m_cbDataCPU,
+	DxVerify(m_constantBufferUploadHeaps[m_frameIndex]->Map(0, &readRange, reinterpret_cast<void**>(&cbDataGpu)));
+	memcpy(cbDataGpu, m_cbDataCPU,
 	       SceneObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount() +
 	       LightingPassCbvData::GetAlignedSize());
 	m_constantBufferUploadHeaps[m_frameIndex]->Unmap(0, nullptr);
@@ -667,9 +670,9 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 		// PSO sets in Reset() above
 
 		commandList->SetGraphicsRootSignature(m_geometryPassRootSignature.Get());
-		D3D12_VIEWPORT viewports[] = {viewport};
+		const D3D12_VIEWPORT viewports[] = {viewport};
 		commandList->RSSetViewports(1, viewports);
-		D3D12_RECT scissorsRects[] = {
+		const D3D12_RECT scissorsRects[] = {
 			{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
 		};
 		commandList->RSSetScissorRects(1, scissorsRects);
@@ -683,13 +686,13 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 		// TODO function helper
 		{
 			const CD3DX12_RESOURCE_BARRIER barriers[m_gBuffer.kRtCount] = {
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.albedoRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.albedoMetalnessRt.Get(),
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ,
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET),
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.positionRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.positionRoughnessRt.Get(),
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ,
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET),
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.normalRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.normalIorRt.Get(),
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ,
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET)
 			};
@@ -704,16 +707,16 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 			rtvHandle.Offset(1, m_rtvDescriptorSize);
 		}
 
-		auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
-		                                               m_dsvDescriptorSize);
+		const auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
+		                                                     m_dsvDescriptorSize);
 		commandList->OMSetRenderTargets(m_gBuffer.kRtCount, rtvHandles, FALSE, &dsvHandle);
 
 		for (uint32_t i = 0; i < m_gBuffer.kRtCount; i++)
 		{
-			const float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+			constexpr float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 			commandList->ClearRenderTargetView(rtvHandles[i], kClearColor, 0, nullptr);
 		}
-		const float kClearDepth = 1.0f;
+		constexpr float kClearDepth = 1.0f;
 		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, kClearDepth, 0, 0, nullptr);
 
 		commandList->OMSetStencilRef(kGeometryStencilRef);
@@ -732,13 +735,13 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 
 		{
 			const CD3DX12_RESOURCE_BARRIER barriers[m_gBuffer.kRtCount] = {
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.albedoRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.albedoMetalnessRt.Get(),
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET,
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ),
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.positionRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.positionRoughnessRt.Get(),
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET,
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ),
-				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.normalRt.Get(),
+				CD3DX12_RESOURCE_BARRIER::Transition(m_gBuffer.normalIorRt.Get(),
 				                                     D3D12_RESOURCE_STATE_RENDER_TARGET,
 				                                     D3D12_RESOURCE_STATE_GENERIC_READ)
 			};
@@ -751,9 +754,9 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 		commandList->SetPipelineState(m_lightingPassPipelineStateObject.Get());
 
 		commandList->SetGraphicsRootSignature(m_lightingPassRootSignature.Get());
-		D3D12_VIEWPORT viewports[] = {viewport};
+		const D3D12_VIEWPORT viewports[] = {viewport};
 		commandList->RSSetViewports(1, viewports);
-		D3D12_RECT scissorsRects[] = {
+		const D3D12_RECT scissorsRects[] = {
 			{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
 		};
 		commandList->RSSetScissorRects(1, scissorsRects);
@@ -772,12 +775,12 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 		                                                    D3D12_RESOURCE_STATE_RENDER_TARGET);
 		commandList->ResourceBarrier(1, &barrier);
 
-		auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-		                                               m_frameIndex, m_rtvDescriptorSize);
-		auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
-			m_dsvDescriptorSize);
+		const auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+		                                                     m_frameIndex, m_rtvDescriptorSize);
+		const auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex,
+		                                                     m_dsvDescriptorSize);
 		commandList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
-		const float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+		constexpr float kClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 		commandList->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
 
 		commandList->OMSetStencilRef(kGeometryStencilRef);
