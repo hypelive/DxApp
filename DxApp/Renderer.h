@@ -22,6 +22,17 @@ public:
 	void SetScene(Scene* scene);
 
 private:
+	struct GBuffer
+	{
+		static constexpr uint32_t kRtCount = 4;
+
+		ComPtr<ID3D12DescriptorHeap> rtvHeap;
+		ComPtr<ID3D12Resource> surfaceColorRt;
+		ComPtr<ID3D12Resource> positionRoughnessRt;
+		ComPtr<ID3D12Resource> normalMetalnessRt;
+		ComPtr<ID3D12Resource> fresnelIndicesRt;
+	};
+
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
 
 	static constexpr DXGI_FORMAT kDsFormat = DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
@@ -64,17 +75,12 @@ private:
 
 	uint8_t* m_cbDataCPU = nullptr;
 
-	struct GBuffer
-	{
-		static constexpr uint32_t kRtCount = 3;
-
-		ComPtr<ID3D12DescriptorHeap> rtvHeap;
-		ComPtr<ID3D12Resource> albedoMetalnessRt;
-		ComPtr<ID3D12Resource> positionRoughnessRt;
-		ComPtr<ID3D12Resource> normalIorRt;
-	};
-
 	GBuffer m_gBuffer;
+
+	ComPtr<ID3D12Resource> m_ltc1;
+	ComPtr<ID3D12Resource> m_ltc2;
+	ComPtr<ID3D12Resource> m_ltc1Upload;
+	ComPtr<ID3D12Resource> m_ltc2Upload;
 
 	void LoadPipeline(HWND hwnd);
 	void EnableDebugLayer();
@@ -94,6 +100,8 @@ private:
 	void CreateLightingPassPso();
 	void CreateCommandList();
 	void CreateSynchronizationResources();
+
+	void CopyFrameResourcesToGpu();
 
 	void CreateRootDescriptorTableResources();
 

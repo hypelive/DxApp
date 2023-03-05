@@ -3,9 +3,12 @@
 // LTC1 is the inverse M
 // LTC2 is for (fresnel calculation factor, fresnel calculation factor, 0(unused), sphere for horizon-clipping)
 
-static const float kLutSize = 64.0f;
-static const float kLutScale = (kLutSize - 1.0f) / kLutSize;
-static const float kLutBias = 0.5f / kLutSize;
+//static const float kLutSize = 64.0f;
+//static const float kLutScale = (kLutSize - 1.0f) / kLutSize;
+//static const float kLutBias = 0.5f / kLutSize;
+
+static const uint32_t kLtcLutDimentionSize = 64;
+static const uint32_t kLtcLutSize = kLtcLutDimentionSize * kLtcLutDimentionSize;
 
 static const float kLtc1[] = {
 	1, 0, 0, 2e-05,

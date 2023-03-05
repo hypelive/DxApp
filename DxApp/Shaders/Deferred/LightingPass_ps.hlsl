@@ -53,23 +53,22 @@ cbuffer ConstantBuffer : register(b0)
 	LightSourcesStruct LightSources;
 };
 
-Texture2D<float4> AlbedoMetalness : register(t0);
+Texture2D<float4> SurfaceColor : register(t0);
 Texture2D<float4> PositionRoughness : register(t1);
-Texture2D<float4> NormalIor : register(t2);
+Texture2D<float4> NormalMetalness : register(t2);
+Texture2D<float4> FresnelIndices : register(t3);
+
+Texture2D<float4> Ltc1 : register(t4);
+Texture2D<float4> Ltc2 : register(t5);
 
 SamplerState PointClampSampler : register(s0);
+SamplerState LinearClampSampler : register(s1);
 
 
 // https://en.wikipedia.org/wiki/Schlick%27s_approximation
-float GetFresnelReflectance(float3 n, float3 l, float ior)
+float3 GetFresnelReflectance(float3 n, float3 l, float3 F0)
 {
 	const float NdotL = dot(n, l);
-
-	static const float n1 = 1.0f;
-	const float n2 = ior;
-	float temp = (n1 - n2) / (n1 + n2);
-	temp = temp * temp;
-	const float F0 = temp;
 
 	return F0 + (1 - F0) * pow(1 - max(0, NdotL), 5);
 }
@@ -95,33 +94,36 @@ float GetNormalDistribution(float3 n, float3 m, float roughness)
 }
 
 
-float3 GetBrdf(float3 n, float3 v, float3 l, float3 rho, float metalness, float roughness, float ior)
+float3 GetBrdf(float3 n, float3 v, float3 l, float3 surfaceColor, float metalness, float roughness, float3 fresnelIndices)
 {
+	const float3 F0 = lerp(fresnelIndices, surfaceColor, metalness);
+	const float3 rho = lerp(surfaceColor, float3(0.0f, 0.0f, 0.0f), metalness);
+
 	const float3 h = normalize(l + v);
-	const float F = GetFresnelReflectance(n, l, ior);
+	const float3 F = GetFresnelReflectance(n, l, F0);
 	const float G = GetMaskingShadowing(l, v, h, roughness);
 	const float D = GetNormalDistribution(n, h, roughness);
 
-	const float specular = F * G * D / (4 * max(1e-7f, abs(dot(n, l))) * abs(dot(n, v)));
+	const float3 specular = F * G * D / (4 * max(1e-7f, abs(dot(n, l))) * abs(dot(n, v)));
 	const float3 diffuse = (1 - F) * rho / kPi;
 
-	// TODO check metalness workflow
-	return (specular * metalness).xxx + diffuse;
+	return specular + diffuse;
 }
 
 
 void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 {
-	const float4 albedoMetalness = AlbedoMetalness.Sample(PointClampSampler, attributes.uv);
-	const float4 positionRoughness = PositionRoughness.Sample(PointClampSampler, attributes.uv);
-	const float4 normalIor = normalize(NormalIor.Sample(PointClampSampler, attributes.uv));
+	const float3 surfaceColor = SurfaceColor.Sample(PointClampSampler, attributes.uv).xyz;
 
-	const float3 albedo = albedoMetalness.xyz;
+	const float4 positionRoughness = PositionRoughness.Sample(PointClampSampler, attributes.uv);
 	const float3 position = positionRoughness.xyz;
-	const float3 normal = normalIor.xyz;
-	const float metalness = albedoMetalness.w;
 	const float roughness = positionRoughness.w;
-	const float ior = normalIor.w;
+
+	const float4 normalMetalness = NormalMetalness.Sample(PointClampSampler, attributes.uv);
+	const float3 normal = normalize(normalMetalness.xyz);
+	const float metalness = normalMetalness.w;
+
+	const float3 fresnelIndices = FresnelIndices.Sample(PointClampSampler, attributes.uv).xyz;
 
 	const float3 view = normalize(CameraPosition.xyz - position);
 
@@ -131,7 +133,7 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 	for (uint i = 0; i < LightSources.directionalLightSourcesCount; i++)
 	{
 		float3 lightDirection = LightSources.directionalSources[i].direction.xyz;
-		float3 brdf = GetBrdf(normal, view, lightDirection, albedo, metalness, roughness, ior);
+		float3 brdf = GetBrdf(normal, view, lightDirection, surfaceColor, metalness, roughness, fresnelIndices);
 
 		radiance += LightSources.directionalSources[i].color.xyz * max(0, dot(lightDirection, normal)) * brdf;
 	}
@@ -147,10 +149,14 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 #endif
 
 		float3 lightDirection = normalize(pointOffset);
-		float3 brdf = GetBrdf(normal, view, lightDirection, albedo, metalness, roughness, ior);
+		float3 brdf = GetBrdf(normal, view, lightDirection, surfaceColor, metalness, roughness, fresnelIndices);
 
 		radiance += LightSources.pointLightSources[i].color.xyz * pointIntensity * max(0, dot(lightDirection, normal)) * brdf;
 	}
+
+	const float4 ltc1 = Ltc1.Sample(LinearClampSampler, float2(0, 0));
+	outputColor = float4(ltc1.xyz, 1.0f);
+	return;
 
 	//for (i = 0; i < LightSources.areaLightSourcesCount; i++)
 	//{
