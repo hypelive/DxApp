@@ -301,7 +301,8 @@ void Renderer::CreateFrameResources()
 
 	// LTCs
 	{
-		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(float) * kLtcLutSize + 255) & ~255); // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT 
+		constexpr uint32_t temp = D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1;
+		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * kLtcLutDimentionSize); // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT 
 
 		const CD3DX12_HEAP_PROPERTIES uploadHeapProperties(D3D12_HEAP_TYPE_UPLOAD);
 		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
@@ -321,11 +322,19 @@ void Renderer::CreateFrameResources()
 
 		void* ltcData = nullptr;
 		DxVerify(m_ltc1Upload->Map(0, &readRange, &ltcData));
-		memcpy(ltcData, kLtc1, sizeof(float) * kLtcLutSize);
+		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimentionSize; rowIndex++)
+		{
+			const auto rowData = (uint8_t*)ltcData + ((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * rowIndex;
+			memcpy(rowData, &kLtc1[4 * kLtcLutDimentionSize * rowIndex], sizeof(float) * 4 * kLtcLutDimentionSize);
+		}
 		m_ltc1Upload->Unmap(0, nullptr);
 
 		DxVerify(m_ltc2Upload->Map(0, &readRange, &ltcData));
-		memcpy(ltcData, kLtc2, sizeof(float) * kLtcLutSize);
+		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimentionSize; rowIndex++)
+		{
+			const auto rowData = (uint8_t*)ltcData + ((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * rowIndex;
+			memcpy(rowData, &kLtc2[4 * kLtcLutDimentionSize * rowIndex], sizeof(float) * 4 * kLtcLutDimentionSize);
+		}
 		m_ltc2Upload->Unmap(0, nullptr);
 	}
 }
@@ -601,15 +610,15 @@ void Renderer::CopyFrameResourcesToGpu()
 		placedSubresourceFootprint.Footprint.Width = kLtcLutDimentionSize;
 		placedSubresourceFootprint.Footprint.Height = kLtcLutDimentionSize;
 		placedSubresourceFootprint.Footprint.Depth = 1;
-		placedSubresourceFootprint.Footprint.RowPitch = sizeof(float) * kLtcLutDimentionSize; // TODO fill buffer properly
+		placedSubresourceFootprint.Footprint.RowPitch = ((sizeof(float) * 4 * kLtcLutDimentionSize + 255) & ~255);
 
 		const auto ltc1TextureCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc1.Get());
 		const auto ltc1TextureCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc1Upload.Get(), placedSubresourceFootprint);
-		m_commandList->CopyTextureRegion(&ltc1TextureCopyDst, kLtcLutDimentionSize, kLtcLutDimentionSize, 1, &ltc1TextureCopySrc, nullptr);
+		m_commandList->CopyTextureRegion(&ltc1TextureCopyDst, 0, 0, 0, &ltc1TextureCopySrc, nullptr);
 
 		const auto ltc2TextureCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc2.Get());
 		const auto ltc2TextureCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc2Upload.Get(), placedSubresourceFootprint);
-		m_commandList->CopyTextureRegion(&ltc2TextureCopyDst, kLtcLutDimentionSize, kLtcLutDimentionSize, 1, &ltc2TextureCopySrc, nullptr);
+		m_commandList->CopyTextureRegion(&ltc2TextureCopyDst, 0, 0, 0, &ltc2TextureCopySrc, nullptr);
 
 		const D3D12_RESOURCE_BARRIER barriers[2] = {
 			CD3DX12_RESOURCE_BARRIER::Transition(m_ltc1.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
@@ -682,7 +691,7 @@ void Renderer::CreateRootDescriptorTableResources()
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.BufferLocation = cbAddress;
-		cbvDesc.SizeInBytes = SceneObjectConstantBuffer::GetAlignedSize();
+		cbvDesc.SizeInBytes = LightingPassCbvData::GetAlignedSize();
 		m_device->CreateConstantBufferView(&cbvDesc, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
 
@@ -855,7 +864,7 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 
 		auto cbDescriptorTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		cbDescriptorTable.Offset(
-			kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex * (1 + GBuffer::kRtCount),
+			kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex * (1 + GBuffer::kRtCount + 2),
 			m_cbvSrvUavDescriptorSize);
 		commandList->SetGraphicsRootDescriptorTable(0, cbDescriptorTable);
 

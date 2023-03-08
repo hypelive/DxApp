@@ -18,7 +18,8 @@ SceneObject::SceneObject(aiMesh* mesh, aiMatrix4x4 transformMatrix)
 		const auto& normal = mesh->mNormals[n];
 
 		m_vertices[n].position = XMFLOAT4(position.x, position.y, position.z, 1.0f);
-		m_vertices[n].color = XMFLOAT4(color.r, color.g, color.b, color.a);
+		if (mesh->HasVertexColors(0))
+			m_vertices[n].color = XMFLOAT4(color.r, color.g, color.b, color.a);
 		m_vertices[n].normal = XMFLOAT4(normal.x, normal.y, normal.z, 0.0f);
 	}
 

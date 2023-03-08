@@ -12,8 +12,8 @@ struct OutputAttributes
 
 // TODO cbuffer with roughness, metal, fresnelIndices
 static const float3 kFresnelIndices = float3(0.6f, 0.7f, 0.8f);
-static const float kRoughness = 0.25f;
-static const float kMetalness = 0.89f;
+static const float kRoughness = 0.0f;
+static const float kMetalness = 0.0f;
 
 
 void ps_main(in PixelAttributes attributes, out OutputAttributes output)
