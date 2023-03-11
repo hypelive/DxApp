@@ -6,6 +6,8 @@
 #define SQR_FALOFF 1
 
 static const float kPi = 3.1415926538f;
+static const float kGamma = 2.2f;
+static const float kInvGamma = 1.0f / kGamma;
 
 
 struct LightSource
@@ -63,8 +65,9 @@ Texture2D<float4> PositionRoughness : register(t1);
 Texture2D<float4> NormalMetalness : register(t2);
 Texture2D<float4> FresnelIndices : register(t3);
 
-Texture2D<float4> Ltc1 : register(t4);
-Texture2D<float4> Ltc2 : register(t5);
+Texture2D<float4> MInversedCoefficients : register(t4);
+Texture2D<float2> FresnelMaskingShadowing : register(t5);
+Texture2D<float> HorizonClippingCoefficients : register(t6);
 
 SamplerState PointClampSampler : register(s0);
 SamplerState LinearClampSampler : register(s1);
@@ -99,11 +102,8 @@ float GetNormalDistribution(float3 n, float3 m, float roughness)
 }
 
 
-float3 GetBrdf(float3 n, float3 v, float3 l, float3 surfaceColor, float metalness, float roughness, float3 fresnelIndices)
+float3 GetBrdf(float3 n, float3 v, float3 l, float3 F0, float3 rho, float roughness)
 {
-	const float3 F0 = lerp(fresnelIndices, surfaceColor, metalness);
-	const float3 rho = lerp(surfaceColor, float3(0.0f, 0.0f, 0.0f), metalness);
-
 	const float3 h = normalize(l + v);
 	const float3 F = GetFresnelReflectance(n, l, F0);
 	const float G = GetMaskingShadowing(l, v, h, roughness);
@@ -167,21 +167,23 @@ float3 LtcEvaluate(float3 n, float3 v, float3 position, float3x3 MInversed, floa
 
 	// form factor of the polygon in direction vsum
 	float formFactor = length(vsum);
-
 	float z = vsum.z / formFactor;
 	float2 horizonClippingUv = float2(z * 0.5f + 0.5f, formFactor); // range [0, 1]
 	horizonClippingUv = horizonClippingUv * kLutScale + kLutBias;
 
 	// Fetch the form factor for horizon clipping
-	float coefficient = Ltc2.Sample(LinearClampSampler, horizonClippingUv).w;
+	float coefficient = HorizonClippingCoefficients.Sample(LinearClampSampler, horizonClippingUv);
 	float sum = formFactor * coefficient;
 
 	return sum.xxx;
 }
 
 
+// GGX BRDF
+// fresnelTerm: shadowedF90 (F90 normally it should be 1.0)
+// maskingShadowingTerm: Smith function for Geometric Attenuation Term, it is dot(V or L, H).
 float3 GetBrdfArea(float3 n, float3 v, float3 position, float3x3 MInversed, float4 points[4],
-	float3 surfaceColor, float metalness, float3 fresnelIndices, float fresnelTerm, float maskingShadowingTerm)
+	float3 F0, float3 rho, float fresnelTerm, float maskingShadowingTerm)
 {
 	static const float3x3 kIdentity = { 
 		1.0f, 0.0f, 0.0f,
@@ -191,19 +193,13 @@ float3 GetBrdfArea(float3 n, float3 v, float3 position, float3x3 MInversed, floa
 
 	float3 direction0 = points[0].xyz - position;
 	float3 lightNormal = cross(points[1].xyz - points[0].xyz, points[3].xyz - points[0].xyz); // TODO Is it ccw or cw?
-	bool isForward = (dot(direction0, lightNormal) >= 0.0f);
+	bool isForward = (dot(direction0, lightNormal) < 0.0f);
 	if (isForward)
 	{
-		const float3 F0 = lerp(fresnelIndices, surfaceColor, metalness);
-		const float3 rho = lerp(surfaceColor, float3(0.0f, 0.0f, 0.0f), metalness);
-
-		float3 diffuse = LtcEvaluate(n, v, position, kIdentity, points);
 		float3 specular = LtcEvaluate(n, v, position, MInversed, points);
-
-		// GGX BRDF shadowing and Fresnel
-		// t2.x: shadowedF90 (F90 normally it should be 1.0)
-		// t2.y: Smith function for Geometric Attenuation Term, it is dot(V or L, H).
 		specular *= F0 * fresnelTerm + (1.0f - F0) * maskingShadowingTerm;
+
+		const float3 diffuse = LtcEvaluate(n, v, position, kIdentity, points);
 
 		return specular + rho * diffuse;
 	}
@@ -230,15 +226,20 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 
 	const float3 view = normalize(CameraPosition.xyz - position);
 
+	const float3 F0 = lerp(fresnelIndices, surfaceColor, metalness);
+	const float3 rho = lerp(surfaceColor, float3(0.0f, 0.0f, 0.0f), metalness);
+
 	float3 radiance = float3(0.0f, 0.0f, 0.0f);
 	// Ambient Light
-	radiance += LightSources.ambient.color.xyz;
+	{
+		radiance += LightSources.ambient.color.xyz * rho;
+	}
 
 	// Directional Lights
 	for (uint i = 0; i < LightSources.directionalLightSourcesCount; i++)
 	{
 		float3 lightDirection = LightSources.directionalSources[i].direction.xyz;
-		float3 brdf = GetBrdf(normal, view, lightDirection, surfaceColor, metalness, roughness, fresnelIndices);
+		float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
 
 		radiance += LightSources.directionalSources[i].color.xyz * max(0, dot(lightDirection, normal)) * brdf;
 	}
@@ -255,7 +256,7 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 #endif
 
 		float3 lightDirection = normalize(pointOffset);
-		float3 brdf = GetBrdf(normal, view, lightDirection, surfaceColor, metalness, roughness, fresnelIndices);
+		float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
 
 		radiance += LightSources.pointLightSources[i].color.xyz * pointIntensity * max(0, dot(lightDirection, normal)) * brdf;
 	}
@@ -266,8 +267,8 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 		float2 LtcUv = float2(roughness, sqrt(1.0f - NdotV));
 		LtcUv = LtcUv * kLutScale + kLutBias;
 
-		float4 MInversedCoefs = Ltc1.Sample(LinearClampSampler, LtcUv);
-		float2 FresnelMaskingShadowing = Ltc2.Sample(LinearClampSampler, LtcUv).xy;
+		const float4 MInversedCoefs = MInversedCoefficients.Sample(LinearClampSampler, LtcUv);
+		const float2 fresnelMaskingShadowing = FresnelMaskingShadowing.Sample(LinearClampSampler, LtcUv);
 
 		float3x3 MInversed = float3x3(
 			float3(MInversedCoefs.x, 0, MInversedCoefs.y),
@@ -278,11 +279,10 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 		for (i = 0; i < LightSources.areaLightSourcesCount; i++)
 		{
 			const float3 brdf = GetBrdfArea(normal, view, position, MInversed, LightSources.areaLightSources[i].vertexPositions,
-				surfaceColor, metalness, fresnelIndices, FresnelMaskingShadowing.x, FresnelMaskingShadowing.y);
+				F0, rho, fresnelMaskingShadowing.x, fresnelMaskingShadowing.y);
 			radiance += LightSources.areaLightSources[i].color.xyz * brdf;
 		}
 	}
 
-	// TODO translate to SRGB
-	outputColor = float4(radiance, 1.0f);
+	outputColor = float4(pow(radiance, kInvGamma), 1.0f);
 }

@@ -1,10 +1,12 @@
 ﻿#pragma once
+#pragma warning( push )
+#pragma warning( disable : 4305 )
 
 // LTC1 is the inverse M
 // LTC2 is for (fresnel calculation factor, fresnel calculation factor, 0(unused), sphere for horizon-clipping)
 
-static const uint32_t kLtcLutDimentionSize = 64;
-static const uint32_t kLtcLutSize = kLtcLutDimentionSize * kLtcLutDimentionSize;
+static const uint32_t kLtcLutDimensionSize = 64;
+static const uint32_t kLtcLutSize = kLtcLutDimensionSize * kLtcLutDimensionSize;
 
 static const float kLtc1[] = {
 	1, 0, 0, 2e-05,
@@ -8204,3 +8206,5 @@ static const float kLtc2[] = {
 	0.93222, 0.0484975, 0, 0.984127,
 	0.932164, 0.0471899, 0, 1,
 };
+
+#pragma warning( pop )

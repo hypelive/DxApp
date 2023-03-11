@@ -33,6 +33,18 @@ private:
 		ComPtr<ID3D12Resource> fresnelIndicesRt;
 	};
 
+	struct AreaLightLuts
+	{
+		static constexpr uint32_t kLutCount = 3;
+
+		ComPtr<ID3D12Resource> MInversedCoefficients;
+		ComPtr<ID3D12Resource> fresnelMaskingShadowing;
+		ComPtr<ID3D12Resource> horizonClippingCoefficients;
+		ComPtr<ID3D12Resource> MInversedCoefficientsUpload;
+		ComPtr<ID3D12Resource> fresnelMaskingShadowingUpload;
+		ComPtr<ID3D12Resource> horizonClippingCoefficientsUpload;
+	};
+
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
 
 	static constexpr DXGI_FORMAT kDsFormat = DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
@@ -76,11 +88,7 @@ private:
 	uint8_t* m_cbDataCPU = nullptr;
 
 	GBuffer m_gBuffer;
-
-	ComPtr<ID3D12Resource> m_ltc1;
-	ComPtr<ID3D12Resource> m_ltc2;
-	ComPtr<ID3D12Resource> m_ltc1Upload;
-	ComPtr<ID3D12Resource> m_ltc2Upload;
+	AreaLightLuts m_areaLightLuts;
 
 	void LoadPipeline(HWND hwnd);
 	void EnableDebugLayer();

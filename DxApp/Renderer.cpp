@@ -301,41 +301,68 @@ void Renderer::CreateFrameResources()
 
 	// LTCs
 	{
-		constexpr uint32_t temp = D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1;
-		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * kLtcLutDimentionSize); // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT 
+		const uint32_t MInversedCoefficientsDataRowPitch = Align(sizeof(float) * 4 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+		const uint32_t fresnelMaskingShadowingDataRowPitch = Align(sizeof(float) * 2 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+		const uint32_t horizonClippingDataRowPitch = Align(sizeof(float) * 1 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
 		const CD3DX12_HEAP_PROPERTIES uploadHeapProperties(D3D12_HEAP_TYPE_UPLOAD);
-		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
-		                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_ltc1Upload));
-		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
-		                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_ltc2Upload));
 
-		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, kLtcLutDimentionSize, kLtcLutDimentionSize);
+		auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(MInversedCoefficientsDataRowPitch * kLtcLutDimensionSize);
+		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
+		                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_areaLightLuts.MInversedCoefficientsUpload));
+		resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(fresnelMaskingShadowingDataRowPitch * kLtcLutDimensionSize);
+		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
+		                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_areaLightLuts.fresnelMaskingShadowingUpload));
+		resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(horizonClippingDataRowPitch * kLtcLutDimensionSize);
+		m_device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_areaLightLuts.horizonClippingCoefficientsUpload));
 
 		const CD3DX12_HEAP_PROPERTIES defaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
 		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
-		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_ltc1));
+		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.MInversedCoefficients));
+		m_areaLightLuts.MInversedCoefficients->SetName(TEXT("AreaLightLuts::MInversedCoefficients"));
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
 		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
-		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_ltc2));
+		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.fresnelMaskingShadowing));
+		m_areaLightLuts.fresnelMaskingShadowing->SetName(TEXT("AreaLightLuts::FresnelMaskingShadowing"));
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
+		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.horizonClippingCoefficients));
+		m_areaLightLuts.horizonClippingCoefficients->SetName(TEXT("AreaLightLuts::HorizonClippingCoefficients"));
 
 		const auto readRange = CD3DX12_RANGE(0, 0);
 
-		void* ltcData = nullptr;
-		DxVerify(m_ltc1Upload->Map(0, &readRange, &ltcData));
-		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimentionSize; rowIndex++)
+		void* inverseCoefficientsData = nullptr;
+		DxVerify(m_areaLightLuts.MInversedCoefficientsUpload->Map(0, &readRange, &inverseCoefficientsData));
+		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimensionSize; rowIndex++)
 		{
-			const auto rowData = (uint8_t*)ltcData + ((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * rowIndex;
-			memcpy(rowData, &kLtc1[4 * kLtcLutDimentionSize * rowIndex], sizeof(float) * 4 * kLtcLutDimentionSize);
+			const auto rowData = (uint8_t*)inverseCoefficientsData + MInversedCoefficientsDataRowPitch * rowIndex;
+			memcpy(rowData, &kLtc1[4 * kLtcLutDimensionSize * rowIndex], sizeof(float) * 4 * kLtcLutDimensionSize);
 		}
-		m_ltc1Upload->Unmap(0, nullptr);
+		m_areaLightLuts.MInversedCoefficientsUpload->Unmap(0, nullptr);
 
-		DxVerify(m_ltc2Upload->Map(0, &readRange, &ltcData));
-		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimentionSize; rowIndex++)
+		void* fresnelMaskingShadowingData = nullptr;
+		DxVerify(m_areaLightLuts.fresnelMaskingShadowingUpload->Map(0, &readRange, &fresnelMaskingShadowingData));
+		void* horizonClippingData = nullptr;
+		DxVerify(m_areaLightLuts.horizonClippingCoefficientsUpload->Map(0, &readRange, &horizonClippingData));
+		for (uint32_t rowIndex = 0; rowIndex < kLtcLutDimensionSize; rowIndex++)
 		{
-			const auto rowData = (uint8_t*)ltcData + ((sizeof(float) * 4 * kLtcLutDimentionSize + temp) & ~temp) * rowIndex;
-			memcpy(rowData, &kLtc2[4 * kLtcLutDimentionSize * rowIndex], sizeof(float) * 4 * kLtcLutDimentionSize);
+			auto* fresnelMaskingShadowingRowData = (float*)((uint8_t*)fresnelMaskingShadowingData + fresnelMaskingShadowingDataRowPitch * rowIndex);
+			auto* horizonClippingCoefficientsRowData = (float*)((uint8_t*)horizonClippingData + horizonClippingDataRowPitch * rowIndex);
+			const auto* ltc2RowData = &kLtc2[4 * kLtcLutDimensionSize * rowIndex];
+
+			for (uint32_t columnIndex = 0; columnIndex < kLtcLutDimensionSize; columnIndex++)
+			{
+				fresnelMaskingShadowingRowData[2 * columnIndex] = ltc2RowData[4 * columnIndex];
+				fresnelMaskingShadowingRowData[2 * columnIndex + 1] = ltc2RowData[4 * columnIndex + 1];
+				// ltc2.z - unused
+				horizonClippingCoefficientsRowData[columnIndex] = ltc2RowData[4 * columnIndex + 3];
+			}
 		}
-		m_ltc2Upload->Unmap(0, nullptr);
+		m_areaLightLuts.fresnelMaskingShadowingUpload->Unmap(0, nullptr);
+		m_areaLightLuts.horizonClippingCoefficientsUpload->Unmap(0, nullptr);
 	}
 }
 
@@ -400,7 +427,7 @@ void Renderer::CreateLightingPassRootSignature()
 	descriptorRanges[0].RegisterSpace = 0; // ?
 
 	descriptorRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descriptorRanges[1].NumDescriptors = GBuffer::kRtCount + 2; // + LTCs
+	descriptorRanges[1].NumDescriptors = GBuffer::kRtCount + AreaLightLuts::kLutCount; // + LTCs
 	descriptorRanges[1].BaseShaderRegister = 0;
 	descriptorRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	descriptorRanges[1].RegisterSpace = 0; // ?
@@ -607,23 +634,35 @@ void Renderer::CopyFrameResourcesToGpu()
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT placedSubresourceFootprint;
 		placedSubresourceFootprint.Offset = 0;
 		placedSubresourceFootprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		placedSubresourceFootprint.Footprint.Width = kLtcLutDimentionSize;
-		placedSubresourceFootprint.Footprint.Height = kLtcLutDimentionSize;
+		placedSubresourceFootprint.Footprint.Width = kLtcLutDimensionSize;
+		placedSubresourceFootprint.Footprint.Height = kLtcLutDimensionSize;
 		placedSubresourceFootprint.Footprint.Depth = 1;
-		placedSubresourceFootprint.Footprint.RowPitch = ((sizeof(float) * 4 * kLtcLutDimentionSize + 255) & ~255);
+		placedSubresourceFootprint.Footprint.RowPitch = Align(sizeof(float) * 4 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
-		const auto ltc1TextureCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc1.Get());
-		const auto ltc1TextureCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc1Upload.Get(), placedSubresourceFootprint);
-		m_commandList->CopyTextureRegion(&ltc1TextureCopyDst, 0, 0, 0, &ltc1TextureCopySrc, nullptr);
+		const auto MInversedCoefficientsCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.MInversedCoefficients.Get());
+		const auto MInversedCoefficientsCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.MInversedCoefficientsUpload.Get(), placedSubresourceFootprint);
+		m_commandList->CopyTextureRegion(&MInversedCoefficientsCopyDst, 0, 0, 0, &MInversedCoefficientsCopySrc, nullptr);
 
-		const auto ltc2TextureCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc2.Get());
-		const auto ltc2TextureCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_ltc2Upload.Get(), placedSubresourceFootprint);
-		m_commandList->CopyTextureRegion(&ltc2TextureCopyDst, 0, 0, 0, &ltc2TextureCopySrc, nullptr);
+		placedSubresourceFootprint.Footprint.Format = DXGI_FORMAT_R32G32_FLOAT;
+		placedSubresourceFootprint.Footprint.RowPitch = Align(sizeof(float) * 2 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
-		const D3D12_RESOURCE_BARRIER barriers[2] = {
-			CD3DX12_RESOURCE_BARRIER::Transition(m_ltc1.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+		const auto fresnelMaskingShadowingCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.fresnelMaskingShadowing.Get());
+		const auto fresnelMaskingShadowingCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.fresnelMaskingShadowingUpload.Get(), placedSubresourceFootprint);
+		m_commandList->CopyTextureRegion(&fresnelMaskingShadowingCopyDst, 0, 0, 0, &fresnelMaskingShadowingCopySrc, nullptr);
+
+		placedSubresourceFootprint.Footprint.Format = DXGI_FORMAT_R32_FLOAT;
+		placedSubresourceFootprint.Footprint.RowPitch = Align(sizeof(float) * 1 * kLtcLutDimensionSize, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+
+		const auto horizonClippingCoefficientsCopyDst = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.horizonClippingCoefficients.Get());
+		const auto horizonClippingCoefficientsCopySrc = CD3DX12_TEXTURE_COPY_LOCATION(m_areaLightLuts.horizonClippingCoefficientsUpload.Get(), placedSubresourceFootprint);
+		m_commandList->CopyTextureRegion(&horizonClippingCoefficientsCopyDst, 0, 0, 0, &horizonClippingCoefficientsCopySrc, nullptr);
+
+		const D3D12_RESOURCE_BARRIER barriers[] = {
+			CD3DX12_RESOURCE_BARRIER::Transition(m_areaLightLuts.MInversedCoefficients.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
 			                                     D3D12_RESOURCE_STATE_GENERIC_READ),
-			CD3DX12_RESOURCE_BARRIER::Transition(m_ltc2.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+			CD3DX12_RESOURCE_BARRIER::Transition(m_areaLightLuts.fresnelMaskingShadowing.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+			                                     D3D12_RESOURCE_STATE_GENERIC_READ),
+			CD3DX12_RESOURCE_BARRIER::Transition(m_areaLightLuts.horizonClippingCoefficients.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
 			                                     D3D12_RESOURCE_STATE_GENERIC_READ)
 		};
 		m_commandList->ResourceBarrier(static_cast<uint32_t>(std::size(barriers)), barriers);
@@ -635,8 +674,9 @@ void Renderer::CopyFrameResourcesToGpu()
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 	WaitForGpu();
 
-	m_ltc1Upload.Reset();
-	m_ltc2Upload.Reset();
+	m_areaLightLuts.MInversedCoefficientsUpload.Reset();
+	m_areaLightLuts.fresnelMaskingShadowingUpload.Reset();
+	m_areaLightLuts.horizonClippingCoefficientsUpload.Reset();
 }
 
 
@@ -644,7 +684,7 @@ void Renderer::CreateRootDescriptorTableResources()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + kSwapChainBuffersCount *
-		(1 + GBuffer::kRtCount + 2);
+		(1 + GBuffer::kRtCount + AreaLightLuts::kLutCount);
 	// plus one for LightSources CBV
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -704,9 +744,11 @@ void Renderer::CreateRootDescriptorTableResources()
 		m_device->CreateShaderResourceView(m_gBuffer.fresnelIndicesRt.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
 
-		m_device->CreateShaderResourceView(m_ltc1.Get(), nullptr, descriptorHandle);
+		m_device->CreateShaderResourceView(m_areaLightLuts.MInversedCoefficients.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
-		m_device->CreateShaderResourceView(m_ltc2.Get(), nullptr, descriptorHandle);
+		m_device->CreateShaderResourceView(m_areaLightLuts.fresnelMaskingShadowing.Get(), nullptr, descriptorHandle);
+		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
+		m_device->CreateShaderResourceView(m_areaLightLuts.horizonClippingCoefficients.Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_cbvSrvUavDescriptorSize);
 	}
 }
@@ -864,7 +906,7 @@ void Renderer::PopulateCommandList(D3D12_VIEWPORT viewport) const
 
 		auto cbDescriptorTable = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		cbDescriptorTable.Offset(
-			kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex * (1 + GBuffer::kRtCount + 2),
+			kSwapChainBuffersCount * m_scene->GetSceneObjectsCount() + m_frameIndex * (1 + GBuffer::kRtCount + AreaLightLuts::kLutCount),
 			m_cbvSrvUavDescriptorSize);
 		commandList->SetGraphicsRootDescriptorTable(0, cbDescriptorTable);
 
