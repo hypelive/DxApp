@@ -261,7 +261,7 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 		radiance += LightSources.pointLightSources[i].color.xyz * pointIntensity * max(0, dot(lightDirection, normal)) * brdf;
 	}
 
-	// Area Lights (BUGGY)
+	// Area Lights
 	// https://learnopengl.com/Guest-Articles/2022/Area-Lights
 	// https://advances.realtimerendering.com/s2016/s2016_ltc_rnd.pdf
 	{

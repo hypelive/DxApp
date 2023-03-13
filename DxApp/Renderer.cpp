@@ -319,15 +319,15 @@ void Renderer::CreateFrameResources()
 
 		const CD3DX12_HEAP_PROPERTIES defaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
-		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize, 1, 1);
 		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
 		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.MInversedCoefficients));
 		m_areaLightLuts.MInversedCoefficients->SetName(TEXT("AreaLightLuts::MInversedCoefficients"));
-		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize, 1, 1);
 		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
 		                                  D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.fresnelMaskingShadowing));
 		m_areaLightLuts.fresnelMaskingShadowing->SetName(TEXT("AreaLightLuts::FresnelMaskingShadowing"));
-		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize);
+		resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_FLOAT, kLtcLutDimensionSize, kLtcLutDimensionSize, 1, 1);
 		m_device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc,
 			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_areaLightLuts.horizonClippingCoefficients));
 		m_areaLightLuts.horizonClippingCoefficients->SetName(TEXT("AreaLightLuts::HorizonClippingCoefficients"));
