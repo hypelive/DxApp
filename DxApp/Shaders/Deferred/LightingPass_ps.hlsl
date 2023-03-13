@@ -156,7 +156,6 @@ float3 LtcEvaluate(float3 n, float3 v, float3 position, float3x3 MInversed, floa
 	L[1] = normalize(L[1]);
 	L[2] = normalize(L[2]);
 	L[3] = normalize(L[3]);
-	n = normalize(mul(MInversed, n));
 
 	// integrate, Stoke's theorem
 	float3 vsum = float3(0.0f, 0.0f, 0.0f);

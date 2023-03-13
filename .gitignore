@@ -14,7 +14,6 @@
 # Compiled Dynamic libraries
 *.so
 *.dylib
-*.dll
 
 # Fortran module files
 *.mod
@@ -24,15 +23,12 @@
 *.lai
 *.la
 *.a
-*.lib
 
 # Executables
-*.exe
 *.out
 *.app
 
 /.vs
-/x64
 /DxApp/x64/Debug
 /DxApp/Shaders/shader.bin
 *.exp

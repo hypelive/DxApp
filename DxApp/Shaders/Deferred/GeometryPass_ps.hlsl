@@ -12,7 +12,7 @@ struct OutputAttributes
 
 // TODO cbuffer with roughness, metal, fresnelIndices
 static const float3 kFresnelIndices = float3(0.6f, 0.7f, 0.8f);
-static const float kRoughness = 0.25f;
+static const float kRoughness = 0.1f;
 static const float kMetalness = 0.0f;
 
 
