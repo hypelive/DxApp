@@ -116,7 +116,6 @@ float3 GetBrdf(float3 n, float3 v, float3 l, float3 F0, float3 rho, float roughn
 }
 
 
-// TODO rework with [2] approx
 float3 IntegrateEdgeVec(float3 v1, float3 v2)
 {
 	// Using built-in acos() function will result flaws
@@ -157,6 +156,7 @@ float3 LtcEvaluate(float3 n, float3 v, float3 position, float3x3 MInversed, floa
 	L[1] = normalize(L[1]);
 	L[2] = normalize(L[2]);
 	L[3] = normalize(L[3]);
+	n = normalize(mul(MInversed, n));
 
 	// integrate, Stoke's theorem
 	float3 vsum = float3(0.0f, 0.0f, 0.0f);
@@ -193,7 +193,7 @@ float3 GetBrdfArea(float3 n, float3 v, float3 position, float3x3 MInversed, floa
 
 	float3 direction0 = points[0].xyz - position;
 	float3 lightNormal = cross(points[1].xyz - points[0].xyz, points[3].xyz - points[0].xyz); // TODO Is it ccw or cw?
-	bool isForward = (dot(direction0, lightNormal) < 0.0f);
+	bool isForward = (dot(direction0, lightNormal) <= 0.0f);
 	if (isForward)
 	{
 		float3 specular = LtcEvaluate(n, v, position, MInversed, points);
@@ -262,6 +262,8 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 	}
 
 	// Area Lights (BUGGY)
+	// https://learnopengl.com/Guest-Articles/2022/Area-Lights
+	// https://advances.realtimerendering.com/s2016/s2016_ltc_rnd.pdf
 	{
 		const float NdotV = max(0.0f, dot(normal, view));
 		float2 LtcUv = float2(roughness, sqrt(1.0f - NdotV));

@@ -475,9 +475,9 @@ void Renderer::CreateGeometryPassPso()
 
 #if defined(_DEBUG)
 	// Enable better shader debugging with the graphics debugging tools.
-	uint32_t compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+	uint32_t compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
 #else
-	uint32_t compileFlags = 0;
+	uint32_t compileFlags = D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
 #endif
 
 	DxVerify(D3DCompileFromFile(L"Shaders/Deferred/GeometryPass_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
@@ -550,9 +550,9 @@ void Renderer::CreateLightingPassPso()
 
 #if defined(_DEBUG)
 	// Enable better shader debugging with the graphics debugging tools.
-	uint32_t compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+	uint32_t compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
 #else
-	uint32_t compileFlags = 0;
+	uint32_t compileFlags = D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
 #endif
 
 	DxVerify(D3DCompileFromFile(L"Shaders/Deferred/LightingPass_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
