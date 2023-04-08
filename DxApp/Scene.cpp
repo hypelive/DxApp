@@ -79,8 +79,10 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 			XMFLOAT4(0.7f, 0.2f, 0.7f, 1.0f),
 			XMFLOAT4(-1.0f, 0.0f, 0.0f, 1.0f)));*/
 		m_lightSources.AddPoint(PointLightSource(
-			XMFLOAT4(10.0f, 10.0f, 10.0f, 1.0f),
+			XMFLOAT4(10.0f, 0.0f, 0.0f, 1.0f),
 			XMFLOAT4(2.0f, 1.0f, 0.0f, 1.0f)));
+		m_lightSources.AddSpot(SpotLightSource(XMFLOAT4(10.0f, 10.0f, 10.0f, 1.0f), XMFLOAT4(2.0f, 1.0f, 0.0f, 1.0f),
+		                                       XMFLOAT4(0.0f, -1.0f, 0.0f, 1.0f), XM_PIDIV4));
 	}
 }
 

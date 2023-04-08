@@ -27,6 +27,13 @@ struct PointLightSource : LightSource
 	float4 position;
 };
 
+struct SpotLightSource : LightSource
+{
+	float4 position;
+	float3 direction;
+	float minLdotDir;
+};
+
 struct RectLightSource : LightSource
 {
 	float4 vertexPositions[4];
@@ -34,15 +41,18 @@ struct RectLightSource : LightSource
 
 struct LightSourcesStruct
 {
-	static const uint kMaxDirectionalLightSourcesCount = 4;
-	static const uint kMaxPointLightSourcesCount = 8;
+	static const uint kMaxDirectionalLightSourcesCount = 2;
+	static const uint kMaxPointLightSourcesCount = 4;
+	static const uint kMaxSpotLightSourcesCount = 4;
 
 	AmbientLightSource ambient;
 	DirectionalLightSource directionalSources[kMaxDirectionalLightSourcesCount];
 	PointLightSource pointLightSources[kMaxPointLightSourcesCount];
+	SpotLightSource spotLightSources[kMaxSpotLightSourcesCount];
 
 	uint directionalLightSourcesCount;
 	uint pointLightSourcesCount;
+	uint spotLightSourcesCount;
 };
 
 
@@ -137,8 +147,8 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 	// Directional Lights
 	for (uint i = 0; i < LightSources.directionalLightSourcesCount; i++)
 	{
-		float3 lightDirection = LightSources.directionalSources[i].direction.xyz;
-		float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
+		const float3 lightDirection = LightSources.directionalSources[i].direction.xyz;
+		const float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
 
 		radiance += LightSources.directionalSources[i].color.xyz * max(0, dot(lightDirection, normal)) * brdf;
 	}
@@ -146,18 +156,41 @@ void ps_main(in PixelAttributes attributes, out float4 outputColor : SV_Target)
 	// Point Lights
 	for (i = 0; i < LightSources.pointLightSourcesCount; i++)
 	{
-		float3 pointOffset = LightSources.pointLightSources[i].position.xyz - position.xyz;
-		float sqrLenght = max(1.0f, dot(pointOffset, pointOffset));
+		const float3 pointOffset = LightSources.pointLightSources[i].position.xyz - position.xyz;
+		const float sqrLenght = max(1.0f, dot(pointOffset, pointOffset));
 #if defined(LINEAR_FALOFF)
-		float pointIntensity = 1 / sqrt(sqrLenght);
+		const float pointIntensity = 1 / sqrt(sqrLenght);
 #elif defined(SQR_FALOFF)
-		float pointIntensity = 1 / sqrLenght;
+		const float pointIntensity = 1 / sqrLenght;
 #endif
 
-		float3 lightDirection = normalize(pointOffset);
-		float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
+		const float3 lightDirection = normalize(pointOffset);
+		const float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
 
 		radiance += LightSources.pointLightSources[i].color.xyz * pointIntensity * max(0, dot(lightDirection, normal)) * brdf;
+	}
+
+	// Spot lights
+	for (i = 0; i < LightSources.spotLightSourcesCount; i++)
+	{
+		const float3 pointOffset = LightSources.spotLightSources[i].position.xyz - position.xyz;
+		const float3 spotDirection = LightSources.spotLightSources[i].direction;
+		const float3 lightDirection = normalize(pointOffset);
+
+		// Step function
+		// TODO new function for attenuation
+		const float angleAttenuation = dot(-lightDirection, spotDirection) >= LightSources.spotLightSources[i].minLdotDir;
+
+		const float sqrLenght = max(1.0f, dot(pointOffset, pointOffset));
+#if defined(LINEAR_FALOFF)
+		const float pointIntensity = 1 / sqrt(sqrLenght);
+#elif defined(SQR_FALOFF)
+		const float pointIntensity = 1 / sqrLenght;
+#endif
+
+		const float3 brdf = GetBrdf(normal, view, lightDirection, F0, rho, roughness);
+
+		radiance += LightSources.spotLightSources[i].color.xyz * pointIntensity * angleAttenuation * max(0, dot(lightDirection, normal)) * brdf;
 	}
 
 	outputColor = float4(pow(radiance, kInvGamma), 1.0f);

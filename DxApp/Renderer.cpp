@@ -22,11 +22,7 @@ using namespace Microsoft::WRL;
 
 
 //TODO
-// freeze area lights
 
-// draw memory layout)
-// refac
-// add spotlight
 // add debug light draw
 // add disk area light (as spotlight)
 // add sphere lights
@@ -516,6 +512,8 @@ void Renderer::CreateGeometryPassPso()
 }
 
 
+// TODO Recompile pixel shader for exactly count of light sources in the scene.
+// How to add sources dynamically in this case?
 void Renderer::CreateLightingPassPso()
 {
 	ComPtr<ID3DBlob> vertexShader;
@@ -757,7 +755,7 @@ void Renderer::AddGeometryPass(ID3D12GraphicsCommandList* commandList) const
 
 	DxHelper::ResourceBarriersArray<GBuffer::kRtCount> barriers;
 	m_gBuffer.AddBarriers(barriers.data(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList->ResourceBarrier(barriers.size(), barriers.data());
+	commandList->ResourceBarrier(static_cast<uint32_t>(barriers.size()), barriers.data());
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_gBuffer.m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandles[m_gBuffer.kRtCount];
@@ -817,7 +815,7 @@ void Renderer::AddLightingPass(ID3D12GraphicsCommandList* commandList) const
 	barriers[GBuffer::kRtCount] = CD3DX12_RESOURCE_BARRIER::Transition(m_swapChainRenderTargets[m_frameIndex].Get(),
 		D3D12_RESOURCE_STATE_PRESENT,
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	commandList->ResourceBarrier(barriers.size(), barriers.data());
+	commandList->ResourceBarrier(static_cast<uint32_t>(barriers.size()), barriers.data());
 
 	const auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_swapChainRtvHeap->GetCPUDescriptorHandleForHeapStart(),
 	                                                     m_frameIndex, m_rtvDescriptorSize);
