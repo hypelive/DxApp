@@ -10,6 +10,10 @@
 
 using namespace Microsoft::WRL;
 
+
+struct CD3DX12_RESOURCE_BARRIER;
+
+
 class Renderer
 {
 public:
@@ -22,27 +26,20 @@ public:
 	void SetScene(Scene* scene);
 
 private:
-	struct GBuffer
+	class GBuffer
 	{
+	public:
 		static constexpr uint32_t kRtCount = 4;
 
-		ComPtr<ID3D12DescriptorHeap> rtvHeap;
-		ComPtr<ID3D12Resource> surfaceColorRt;
-		ComPtr<ID3D12Resource> positionRoughnessRt;
-		ComPtr<ID3D12Resource> normalMetalnessRt;
-		ComPtr<ID3D12Resource> fresnelIndicesRt;
-	};
+		ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+		ComPtr<ID3D12Resource> m_surfaceColorRt;
+		ComPtr<ID3D12Resource> m_positionRoughnessRt;
+		ComPtr<ID3D12Resource> m_normalMetalnessRt;
+		ComPtr<ID3D12Resource> m_fresnelIndicesRt;
 
-	struct AreaLightLuts
-	{
-		static constexpr uint32_t kLutCount = 3;
-
-		ComPtr<ID3D12Resource> MInversedCoefficients;
-		ComPtr<ID3D12Resource> fresnelMaskingShadowing;
-		ComPtr<ID3D12Resource> horizonClippingCoefficients;
-		ComPtr<ID3D12Resource> MInversedCoefficientsUpload;
-		ComPtr<ID3D12Resource> fresnelMaskingShadowingUpload;
-		ComPtr<ID3D12Resource> horizonClippingCoefficientsUpload;
+		void CreateResources(ID3D12Device* device, uint32_t windowWidth, uint32_t windowHeight);
+		void AddBarriers(CD3DX12_RESOURCE_BARRIER* array, D3D12_RESOURCE_STATES stateBefore,
+		                 D3D12_RESOURCE_STATES stateAfter) const;
 	};
 
 	static constexpr uint32_t kSwapChainBuffersCount = 2;
@@ -78,7 +75,7 @@ private:
 	uint32_t m_frameIndex;
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
-	uint64_t m_fenceValues[kSwapChainBuffersCount] = { 0 };
+	uint64_t m_fenceValues[kSwapChainBuffersCount] = {0};
 
 	Scene* m_scene;
 
@@ -88,7 +85,6 @@ private:
 	uint8_t* m_cbDataCPU = nullptr;
 
 	GBuffer m_gBuffer;
-	AreaLightLuts m_areaLightLuts;
 
 	void LoadPipeline(HWND hwnd);
 	void EnableDebugLayer();
@@ -117,6 +113,8 @@ private:
 	void UpdateData(float appAspect);
 
 	void PopulateCommandList(D3D12_VIEWPORT viewport) const;
+	void AddGeometryPass(ID3D12GraphicsCommandList* commandList) const;
+	void AddLightingPass(ID3D12GraphicsCommandList* commandList) const;
 
 	void WaitForGpu();
 	void UpdateToNextFrame();

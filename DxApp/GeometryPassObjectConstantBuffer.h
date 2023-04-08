@@ -4,9 +4,9 @@
 
 using namespace DirectX;
 
-struct SceneObjectConstantBuffer
+struct GeometryPassObjectConstantBuffer
 {
-	static uint32_t GetAlignedSize() { return (sizeof(SceneObjectConstantBuffer) + 255) & ~255; }
+	static uint32_t GetAlignedSize() { return (sizeof(GeometryPassObjectConstantBuffer) + 255) & ~255; }
 
 	XMFLOAT4X4 model;
 	XMFLOAT4X4 view;

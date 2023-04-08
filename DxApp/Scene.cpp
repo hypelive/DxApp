@@ -62,9 +62,6 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 					XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
 					XMFLOAT4(light->mPosition.x, light->mPosition.y, light->mPosition.z, 1.0f)));
 				break;
-			case aiLightSource_AREA:
-				// TODO
-				break;
 			default:
 				break;
 			}
@@ -81,16 +78,9 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 		/*m_lightSources.AddDirectional(DirectionalLightSource(
 			XMFLOAT4(0.7f, 0.2f, 0.7f, 1.0f),
 			XMFLOAT4(-1.0f, 0.0f, 0.0f, 1.0f)));*/
-		/*m_lightSources.AddPoint(PointLightSource(
+		m_lightSources.AddPoint(PointLightSource(
 			XMFLOAT4(10.0f, 10.0f, 10.0f, 1.0f),
-			XMFLOAT4(2.0f, 0.0f, 0.0f, 1.0f)));*/
-		XMFLOAT4 points[4] = {
-			XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f),
-			XMFLOAT4(0.0f, 0.2f, 1.0f, 1.0f),
-			XMFLOAT4(0.0f, 0.2f, -1.0f, 1.0f),
-			XMFLOAT4(0.0f, 1.0f, -1.0f, 1.0f)
-		};
-		m_lightSources.AddArea(AreaLightSource(XMFLOAT4(2.0f, 2.0f, 2.0f, 1.0f), points));
+			XMFLOAT4(2.0f, 1.0f, 0.0f, 1.0f)));
 	}
 }
 

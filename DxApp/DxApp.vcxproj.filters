@@ -36,7 +36,7 @@
     <ClInclude Include="Camera.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="SceneObjectConstantBuffer.h">
+    <ClInclude Include="GeometryPassObjectConstantBuffer.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="Scene.h">

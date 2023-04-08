@@ -63,14 +63,14 @@ struct PointLightSource : LightSource
 
 
 // RectLightSource really
-struct AreaLightSource : LightSource
+struct RectLightSource : LightSource
 {
 	// w unused
 	DirectX::XMFLOAT4 vertexPositions[4] = { DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) };
 
-	AreaLightSource() = default;
+	RectLightSource() = default;
 
-	AreaLightSource(DirectX::XMFLOAT4 lightColor, DirectX::XMFLOAT4 lightVertexPositions[4]) :
+	RectLightSource(DirectX::XMFLOAT4 lightColor, DirectX::XMFLOAT4 lightVertexPositions[4]) :
 		LightSource(lightColor)
 	{
 		for (uint32_t i = 0; i < 4; i++)
@@ -84,22 +84,18 @@ class LightSources
 public:
 	static constexpr uint32_t kMaxDirectionalLightSourcesCount = 4;
 	static constexpr uint32_t kMaxPointLightSourcesCount = 8;
-	static constexpr uint32_t kMaxAreaLightSourcesCount = 4;
 
 	LightSources() = default;
 
 	void SetAmbient(AmbientLightSource lightSource);
 	void AddDirectional(DirectionalLightSource lightSource);
 	void AddPoint(PointLightSource lightSource);
-	void AddArea(AreaLightSource lightSource);
 
 private:
 	AmbientLightSource m_ambient;
 	DirectionalLightSource m_directionalSources[kMaxDirectionalLightSourcesCount];
 	PointLightSource m_pointLightSources[kMaxPointLightSourcesCount];
-	AreaLightSource m_areaLightSources[kMaxAreaLightSourcesCount];
 
 	uint32_t m_directionalLightSourcesCount = 0;
 	uint32_t m_pointLightSourcesCount = 0;
-	uint32_t m_areaLightSourcesCount = 0;
 };
