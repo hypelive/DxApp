@@ -1,94 +1,118 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Исходные файлы">
+    <Filter Include="OtherResources">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{7031a1e7-b3ba-44d3-a402-d5c3413549a1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Renderer">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Файлы заголовков">
+    <Filter Include="App">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="Файлы ресурсов">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="Core">
+      <UniqueIdentifier>{91142306-5dc1-409a-9272-3888e53551a3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>App</Filter>
     </ClInclude>
     <ClInclude Include="targetver.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>App</Filter>
     </ClInclude>
     <ClInclude Include="Resource.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>App</Filter>
     </ClInclude>
     <ClInclude Include="DxApp.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="DxHelpers.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>App</Filter>
     </ClInclude>
     <ClInclude Include="Camera.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryPassObjectConstantBuffer.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="Scene.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="SceneObject.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="LightSources.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Scene</Filter>
     </ClInclude>
-    <ClInclude Include="MathHelpers.h">
-      <Filter>Файлы заголовков</Filter>
+    <ClInclude Include="Scene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneObject.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="DxHelpers.h">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="GBuffer.h">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPass.h">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryPassObjectConstantBuffer.h">
+      <Filter>Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Ltcs.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer.h">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="RendererForwards.h">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="MathHelpers.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="LightingPass.h">
+      <Filter>Renderer</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DxApp.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
     <ClCompile Include="Renderer.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="GBuffer.cpp">
+      <Filter>Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryPass.cpp">
+      <Filter>Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Camera.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="Scene.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="SceneObject.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="LightSources.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="MathHelpers.cpp">
-      <Filter>Исходные файлы</Filter>
+    <ClCompile Include="Scene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneObject.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="DxApp.cpp">
+      <Filter>App</Filter>
+    </ClCompile>
+    <ClCompile Include="LightingPass.cpp">
+      <Filter>Renderer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="DxApp.rc">
-      <Filter>Файлы ресурсов</Filter>
+      <Filter>OtherResources</Filter>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico">
-      <Filter>Файлы ресурсов</Filter>
+      <Filter>OtherResources</Filter>
     </Image>
     <Image Include="DxApp.ico">
-      <Filter>Файлы ресурсов</Filter>
+      <Filter>OtherResources</Filter>
     </Image>
   </ItemGroup>
 </Project>

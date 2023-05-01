@@ -117,6 +117,11 @@
       <AdditionalLibraryDirectories>C:\Dev\DxApp\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;assimp-vc143-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>vs_main</EntryPointName>
+      <ShaderType>Vertex</ShaderType>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -135,6 +140,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="GBuffer.h" />
+    <ClInclude Include="GeometryPass.h" />
+    <ClInclude Include="LightingPass.h" />
     <ClInclude Include="LightSources.h" />
     <ClInclude Include="Ltcs.h" />
     <ClInclude Include="MathHelpers.h" />
@@ -143,6 +151,7 @@
     <ClInclude Include="DxApp.h" />
     <ClInclude Include="DxHelpers.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="RendererForwards.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneObject.h" />
@@ -150,8 +159,10 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="GBuffer.cpp" />
+    <ClCompile Include="GeometryPass.cpp" />
+    <ClCompile Include="LightingPass.cpp" />
     <ClCompile Include="LightSources.cpp" />
-    <ClCompile Include="MathHelpers.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DxApp.cpp" />
