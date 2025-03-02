@@ -26,6 +26,14 @@ using namespace Microsoft::WRL;
 
 // add debug light draw
 // add disk area light (as spotlight)
+
+// add AO
+// add shadows
+// add AA (TAA?)
+// add BVH (octree)
+// postprocess
+
+
 // add sphere lights
 // add rect area lights
 
@@ -80,7 +88,10 @@ void Renderer::RenderScene(D3D12_VIEWPORT viewport)
 	ID3D12CommandList* commandLists[] = {m_commandList.Get()};
 	m_commandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
-	DxVerify(m_swapChain->Present(0, 0));
+	// TODO option.
+	constexpr uint32_t kSyncInterval = 1; 
+	
+	DxVerify(m_swapChain->Present(kSyncInterval, 0));
 
 	UpdateToNextFrame();
 }

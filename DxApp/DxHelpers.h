@@ -1,27 +1,27 @@
 #pragma once
 
+#include <d3dx12.h>
 #include <intrin.h>
 #include <iostream>
-#include <d3dx12.h>
-
 
 #ifdef _DEBUG
-#define DxVerify(hr) {					\
-		if (FAILED(hr))					\
-		{								\
-		    std::cout << (hr) << "\n";	\
-			__debugbreak();				\
-		}								\
-	}
-#else 
-#define DxVerify(hr) {					\
-		if (FAILED(hr))					\
-		{								\
-		    std::cout << (hr) << "\n";	\
-		}								\
-	}
+	#define DxVerify(hr)                   \
+		{                                  \
+			if (FAILED(hr))                \
+			{                              \
+				std::cout << (hr) << "\n"; \
+				__debugbreak();            \
+			}                              \
+		}
+#else
+	#define DxVerify(hr)                   \
+		{                                  \
+			if (FAILED(hr))                \
+			{                              \
+				std::cout << (hr) << "\n"; \
+			}                              \
+		}
 #endif
-
 
 namespace DxHelper
 {
@@ -34,13 +34,13 @@ namespace DxHelper
 		return (size + temp) & ~temp;
 	}
 
-	inline void SetRenderTarget(ID3D12GraphicsCommandList* commandList, D3D12_VIEWPORT viewport)
+	inline void SetRenderTarget(ID3D12GraphicsCommandList* commandList,
+		D3D12_VIEWPORT									   viewport)
 	{
 		const D3D12_VIEWPORT viewports[] = { viewport };
 		commandList->RSSetViewports(1, viewports);
-		const D3D12_RECT scissorsRects[] = {
-			{0, 0, static_cast<LONG>(viewport.Width), static_cast<LONG>(viewport.Height)}
-		};
+		const D3D12_RECT scissorsRects[] = { { 0, 0, static_cast<LONG>(viewport.Width),
+			static_cast<LONG>(viewport.Height) } };
 		commandList->RSSetScissorRects(1, scissorsRects);
 	}
-}
+} // namespace DxHelper

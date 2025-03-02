@@ -8,15 +8,12 @@
 #include "GeometryPassObjectConstantBuffer.h"
 #include "Scene.h"
 
-
 using namespace Microsoft::WRL;
-
 
 GeometryPass::GeometryPass(ID3D12Device* device)
 {
 	Initialize(device);
 }
-
 
 void GeometryPass::Initialize(ID3D12Device* device)
 {
@@ -26,15 +23,13 @@ void GeometryPass::Initialize(ID3D12Device* device)
 	m_cbvSrvUavDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-
 void GeometryPass::SetScene(Scene* scene)
 {
 	m_scene = scene;
 }
 
-
 void GeometryPass::SetupRootResourceDescriptors(ID3D12Device* device, CD3DX12_CPU_DESCRIPTOR_HANDLE rootParameters,
-                                                D3D12_GPU_VIRTUAL_ADDRESS dataAddress) const
+	D3D12_GPU_VIRTUAL_ADDRESS dataAddress) const
 {
 	for (uint32_t j = 0; j < m_scene->GetSceneObjectsCount(); j++)
 	{
@@ -48,12 +43,11 @@ void GeometryPass::SetupRootResourceDescriptors(ID3D12Device* device, CD3DX12_CP
 	}
 }
 
-
 void GeometryPass::UpdateRootResources(uint8_t* cbData, float appAspect) const
 {
 	for (uint32_t i = 0; i < m_scene->GetSceneObjects().size(); i++)
 	{
-		new(cbData) GeometryPassObjectConstantBuffer();
+		new (cbData) GeometryPassObjectConstantBuffer();
 		auto& sceneObjectData = *reinterpret_cast<GeometryPassObjectConstantBuffer*>(cbData);
 
 		sceneObjectData.model = m_scene->GetSceneObjects()[i].GetTransformMatrix();
@@ -62,7 +56,7 @@ void GeometryPass::UpdateRootResources(uint8_t* cbData, float appAspect) const
 
 		const XMMATRIX modelMatrix = XMLoadFloat4x4(&sceneObjectData.model);
 		const XMMATRIX viewMatrix = XMLoadFloat4x4(&sceneObjectData.view);
-		XMMATRIX projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
+		XMMATRIX	   projectionMatrix = XMLoadFloat4x4(&sceneObjectData.projection);
 
 		XMMATRIX vpMatrix = XMMatrixMultiply(viewMatrix, projectionMatrix);
 
@@ -73,13 +67,11 @@ void GeometryPass::UpdateRootResources(uint8_t* cbData, float appAspect) const
 	}
 }
 
-
 void GeometryPass::Setup(ID3D12GraphicsCommandList* commandList) const
 {
 	commandList->SetPipelineState(m_pipelineStateObject.Get());
 	commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 }
-
 
 void GeometryPass::Draw(ID3D12GraphicsCommandList* commandList, CD3DX12_GPU_DESCRIPTOR_HANDLE rootParameters, Scene* scene) const
 {
@@ -98,18 +90,15 @@ void GeometryPass::Draw(ID3D12GraphicsCommandList* commandList, CD3DX12_GPU_DESC
 	}
 }
 
-
 uint32_t GeometryPass::GetDescriptorTablesDescriptorsCount() const
 {
 	return m_scene->GetSceneObjectsCount();
 }
 
-
 uint32_t GeometryPass::GetRootResourcesSize() const
 {
 	return GeometryPassObjectConstantBuffer::GetAlignedSize() * m_scene->GetSceneObjectsCount();
 }
-
 
 void GeometryPass::CreateRootSignature(ID3D12Device* device)
 {
@@ -142,7 +131,6 @@ void GeometryPass::CreateRootSignature(ID3D12Device* device)
 		IID_PPV_ARGS(&m_rootSignature)));
 }
 
-
 void GeometryPass::CreatePipelineStateObject(ID3D12Device* device)
 {
 	ComPtr<ID3DBlob> vertexShader;
@@ -165,15 +153,11 @@ void GeometryPass::CreatePipelineStateObject(ID3D12Device* device)
 		compileFlags, 0, &pixelShader, nullptr));
 
 	D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{
-			"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-		},
-		{
-			"NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-		}
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};

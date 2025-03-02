@@ -4,8 +4,8 @@
 
 #include "Scene.h"
 
-
-Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
+Scene::Scene(const char* path)
+	: m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 {
 	auto* importedScene = aiImportFile(path, aiProcessPreset_TargetRealtime_MaxQuality);
 	assert(importedScene);
@@ -14,12 +14,12 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 	{
 		struct StackEntry
 		{
-			aiNode* node;
+			aiNode*		node;
 			aiMatrix4x4 parentTransform;
 		};
 
 		std::vector<StackEntry> stack;
-		stack.push_back({importedScene->mRootNode, aiMatrix4x4()});
+		stack.push_back({ importedScene->mRootNode, aiMatrix4x4() });
 
 		while (!stack.empty())
 		{
@@ -36,7 +36,7 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 			}
 
 			for (uint32_t i = 0; i < entry.node->mNumChildren; i++)
-				stack.push_back({entry.node->mChildren[i], transform});
+				stack.push_back({ entry.node->mChildren[i], transform });
 		}
 	}
 
@@ -48,22 +48,22 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 
 			switch (light->mType)
 			{
-			case aiLightSource_AMBIENT:
-				m_lightSources.SetAmbient(AmbientLightSource(
-					XMFLOAT4(light->mColorAmbient.r, light->mColorAmbient.g, light->mColorAmbient.b, 1.0f)));
-				break;
-			case aiLightSource_DIRECTIONAL:
-				m_lightSources.AddDirectional(DirectionalLightSource(
-					XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
-					XMFLOAT4(light->mDirection.x, light->mDirection.y, light->mDirection.z, 1.0f)));
-				break;
-			case aiLightSource_POINT:
-				m_lightSources.AddPoint(PointLightSource(
-					XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
-					XMFLOAT4(light->mPosition.x, light->mPosition.y, light->mPosition.z, 1.0f)));
-				break;
-			default:
-				break;
+				case aiLightSource_AMBIENT:
+					m_lightSources.SetAmbient(AmbientLightSource(
+						XMFLOAT4(light->mColorAmbient.r, light->mColorAmbient.g, light->mColorAmbient.b, 1.0f)));
+					break;
+				case aiLightSource_DIRECTIONAL:
+					m_lightSources.AddDirectional(DirectionalLightSource(
+						XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
+						XMFLOAT4(light->mDirection.x, light->mDirection.y, light->mDirection.z, 1.0f)));
+					break;
+				case aiLightSource_POINT:
+					m_lightSources.AddPoint(PointLightSource(
+						XMFLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b, 1.0f),
+						XMFLOAT4(light->mPosition.x, light->mPosition.y, light->mPosition.z, 1.0f)));
+					break;
+				default:
+					break;
 			}
 		}
 	}
@@ -82,10 +82,9 @@ Scene::Scene(const char* path) : m_camera(XMFLOAT3(-1.0f, -1.5f, 0.5f))
 			XMFLOAT4(10.0f, 0.0f, 0.0f, 1.0f),
 			XMFLOAT4(2.0f, 1.0f, 0.0f, 1.0f)));
 		m_lightSources.AddSpot(SpotLightSource(XMFLOAT4(10.0f, 10.0f, 10.0f, 1.0f), XMFLOAT4(2.0f, 1.0f, 0.0f, 1.0f),
-		                                       XMFLOAT4(0.0f, -1.0f, 0.0f, 1.0f), XM_PIDIV4));
+			XMFLOAT4(0.0f, -1.0f, 0.0f, 1.0f), XM_PIDIV4));
 	}
 }
-
 
 void Scene::CreateRendererResources(ID3D12Device* device, ID3D12GraphicsCommandList* commandList)
 {
@@ -98,7 +97,6 @@ void Scene::DestroyUploadResources()
 	for (auto& sceneObject : m_sceneObjects)
 		sceneObject.DestroyUploadResources();
 }
-
 
 void Scene::DestroyRendererResources()
 {
